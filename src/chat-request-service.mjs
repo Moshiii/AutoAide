@@ -1,7 +1,8 @@
 import { resolveBotHome } from "./config.mjs";
-import { chargeRequestUsage, renderBillingDeniedMessage } from "./billing-service.mjs";
 import { createQueuedRun, markRunDenied } from "./run-service.mjs";
 import { evaluateConversationPolicy } from "./conversation-policy.mjs";
+import { chargeRunBilling } from "./permissions/billing-gate.mjs";
+import { appendRuntimeAuditEvent } from "./runtime-audit-log.mjs";
 import {
   buildUserId,
   canUseGroupChat,
@@ -28,6 +29,36 @@ function buildVisibility(chatType, isDirect) {
   return isDirectChat(chatType, isDirect) ? "private" : "public";
 }
 
+function emitChatRequestAudit(event, {
+  auditEvent,
+  runtimeAudit = false,
+  botHome,
+  run = {},
+  user = {},
+  details = {},
+} = {}) {
+  const appendAudit = typeof auditEvent === "function"
+    ? auditEvent
+    : runtimeAudit === true ? appendRuntimeAuditEvent : null;
+  if (typeof appendAudit !== "function") {
+    return;
+  }
+  const nextDetails = {
+    runId: run.runId || details.runId || "",
+    channel: run.channel || details.channel || "",
+    userId: user.id || run.userId || details.userId || "",
+    chatId: run.chatId || details.chatId || "",
+    botHome,
+    errorCode: details.errorCode || "",
+    ...details,
+  };
+  void Promise.resolve(appendAudit({
+    event,
+    level: nextDetails.errorCode ? "warn" : "info",
+    details: nextDetails,
+  }, botHome)).catch(() => {});
+}
+
 function canUserAccessChat(user, chatType, isDirect) {
   return isDirectChat(chatType, isDirect) ? canUsePrivateChat(user) : canUseGroupChat(user);
 }
@@ -52,6 +83,28 @@ function accessDeniedMessage(user, chatType, isDirect) {
   return "This user cannot use CodexBridge in this chat.";
 }
 
+async function chargePreparedRun({
+  user,
+  run,
+  chatType,
+  amount,
+  botHome,
+  channel,
+  chatId,
+  messageId,
+} = {}) {
+  return await chargeRunBilling({
+    user,
+    run,
+    chatType,
+    amount,
+    botHome,
+    channel,
+    chatId,
+    messageId,
+  });
+}
+
 export async function prepareChatRequest({
   channel,
   externalUserId,
@@ -62,7 +115,10 @@ export async function prepareChatRequest({
   conversationId = "",
   content = "",
   amount,
+  deferCharge = false,
   botHome = resolveBotHome(),
+  auditEvent,
+  runtimeAudit = false,
 } = {}) {
   const normalizedChannel = normalizeString(channel || envelope.channel).toLowerCase();
   const normalizedExternalUserId = normalizeString(externalUserId || envelope.userId);
@@ -91,6 +147,19 @@ export async function prepareChatRequest({
     const deniedRun = await markRunDenied(run.runId, "conversation_policy_blocked", {
       reason: policy.reason,
     }, botHome);
+    emitChatRequestAudit("policy denied", {
+      auditEvent,
+      runtimeAudit,
+      botHome,
+      run: deniedRun,
+      user,
+      details: {
+        errorCode: "conversation_policy_blocked",
+        reason: policy.reason,
+        policyAction: policy.action,
+        blockingLabels: policy.blockingLabels || [],
+      },
+    });
     return {
       ok: false,
       decision: "denied",
@@ -106,6 +175,18 @@ export async function prepareChatRequest({
   if (!canUserAccessChat(user, chatType, isDirect)) {
     const reason = accessDeniedReason(user, chatType, isDirect);
     const deniedRun = await markRunDenied(run.runId, reason, {}, botHome);
+    emitChatRequestAudit("policy denied", {
+      auditEvent,
+      runtimeAudit,
+      botHome,
+      run: deniedRun,
+      user,
+      details: {
+        errorCode: reason,
+        reason,
+        policyAction: "deny_access",
+      },
+    });
     return {
       ok: false,
       decision: "denied",
@@ -118,38 +199,83 @@ export async function prepareChatRequest({
     };
   }
 
-  const charge = await chargeRequestUsage({
-    userId: user.id,
+  if (deferCharge) {
+    return {
+      ok: true,
+      decision: "pending_charge",
+      reason: "",
+      message: "",
+      user,
+      run,
+      charged: null,
+      policy,
+      chargeRequest: {
+        userId: user.id,
+        chatType,
+        amount,
+        botHome,
+        channel: normalizedChannel,
+        chatId: runFields.chatId,
+        messageId: runFields.messageId,
+        runId: run.runId,
+      },
+    };
+  }
+
+  const charged = await chargePreparedRun({
+    user,
+    run,
     chatType,
     amount,
     botHome,
     channel: normalizedChannel,
     chatId: runFields.chatId,
     messageId: runFields.messageId,
-    runId: run.runId,
   });
-  if (!charge.ok) {
-    const deniedRun = await markRunDenied(run.runId, "insufficient_credits", {}, botHome);
+  charged.policy = policy;
+  emitChatRequestAudit(charged.ok ? "billing charged" : "billing denied", {
+    auditEvent,
+    runtimeAudit,
+    botHome,
+    run: charged.run,
+    user,
+    details: {
+      errorCode: charged.ok ? "" : charged.reason || "billing_denied",
+      reason: charged.reason || "",
+      costSource: charged.charged?.costSource || "",
+      charged: charged.charged?.charged ?? charged.charged?.paidCreditsCharged ?? 0,
+    },
+  });
+  return charged;
+}
+
+export async function chargePreparedChatRequest(prepared = {}, {
+  amount,
+  botHome = prepared.chargeRequest?.botHome || resolveBotHome(),
+} = {}) {
+  if (!prepared?.ok || !prepared?.run?.runId || !prepared?.user?.id) {
+    throw new Error("chargePreparedChatRequest requires a successful prepared chat request.");
+  }
+  if (prepared.charged) {
     return {
-      ok: false,
-      decision: "denied",
-      reason: "insufficient_credits",
-      message: renderBillingDeniedMessage(charge, { userId: user.id }),
-      user,
-      run: deniedRun,
-      charged: charge,
-      policy,
+      ...prepared,
+      decision: "ready",
     };
   }
-
+  const chargeRequest = prepared.chargeRequest || {};
+  const charged = await chargePreparedRun({
+    user: prepared.user,
+    run: prepared.run,
+    chatType: chargeRequest.chatType || prepared.run.chatType,
+    amount: amount ?? chargeRequest.amount,
+    botHome,
+    channel: chargeRequest.channel || prepared.run.channel,
+    chatId: chargeRequest.chatId || prepared.run.chatId,
+    messageId: chargeRequest.messageId || prepared.run.messageId,
+  });
   return {
-    ok: true,
-    decision: "ready",
-    reason: "",
-    message: "",
-    user,
-    run,
-    charged: charge,
-    policy,
+    ...prepared,
+    ...charged,
+    policy: prepared.policy,
   };
 }

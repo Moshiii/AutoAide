@@ -1,0 +1,2 @@
+{"type":"item.started","item":{"id":"tool_1","type":"tool_call","name":"read_file"}}
+{"type":"item.completed","item":{"id":"tool_1","type":"tool_call","name":"read_file"}}

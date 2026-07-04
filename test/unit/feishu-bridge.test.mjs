@@ -67,6 +67,47 @@ test("renderCreditsStatus includes daily free and paid credit fields", async () 
   });
 });
 
+test("Feishu run command config applies workspace policy only when enabled", async () => {
+  await withTempHome(async (tempHome) => {
+    const { buildFeishuRunCommandConfig } = await importFresh("../../plugins/feishu-codex/feishu-codex-bridge.mjs");
+    const baseCommandConfig = {
+      cwd: "/tmp/outside",
+      startCommand: "codex exec --json -",
+      resumeTemplate: "codex exec resume __SESSION_ID__ -",
+      model: "gpt-5.4",
+    };
+
+    assert.equal(buildFeishuRunCommandConfig({
+      baseCommandConfig,
+      enabled: false,
+    }), baseCommandConfig);
+
+    const secured = buildFeishuRunCommandConfig({
+      baseCommandConfig,
+      botHome: tempHome,
+      envelope: { chatType: "group" },
+      user: { status: "free" },
+      usageUserId: "feishu:ou_1",
+      config: { ownerUserId: "feishu:owner" },
+      enabled: true,
+      env: {
+        PATH: "/bin",
+        OPENAI_API_KEY: "sk-test",
+        SECRET_TOKEN: "hidden",
+      },
+    });
+
+    assert.match(secured.cwd, /workspace$/);
+    assert.deepEqual(secured.env, {
+      PATH: "/bin",
+      OPENAI_API_KEY: "sk-test",
+    });
+    assert.equal(secured.runPolicy.allowShell, false);
+    assert.equal(secured.runPolicy.allowNetwork, false);
+    assert.equal(secured.workspacePolicy.workspaceRoot, secured.cwd);
+  });
+});
+
 test("feishu welcome and help explain free group use and private unlock", async () => {
   await withTempHome(async () => {
     const { renderHelpMessage, renderWelcomeMessage } = await importFresh("../../plugins/feishu-codex/feishu-codex-bridge.mjs");
@@ -89,6 +130,7 @@ test("feishu common error prompts stay actionable", async () => {
   await withTempHome(async () => {
     const {
       renderBusyMessage,
+      renderQueuedMessage,
       renderRequestFailedMessage,
       renderUnsupportedCommandMessage,
       renderUnsupportedPayloadMessage,
@@ -99,6 +141,8 @@ test("feishu common error prompts stay actionable", async () => {
     assert.match(renderUnsupportedPayloadMessage(), /attachment download\/upload/);
     assert.match(renderUnsupportedCommandMessage("/foo"), /Use \/help/);
     assert.match(renderBusyMessage("main"), /use \/stop/);
+    assert.match(renderQueuedMessage("main", 2), /position 2/);
+    assert.match(renderQueuedMessage("main", 2), /No credits have been charged yet/);
     assert.match(renderRequestFailedMessage("codex missing"), /Paid credits charged/);
     assert.match(renderRequestFailedMessage("codex missing"), /daily free quota does not spend paid credits/);
     assert.match(renderRequestFailedMessage("codex missing"), /ask the operator/);

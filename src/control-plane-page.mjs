@@ -596,6 +596,10 @@ export function renderHtmlPage({ homePath = process.env.HOME || "" } = {}) {
                   <div>Storage</div><div>Checking state schema.</div>
                   <div>Next</div><div>Run migrations before inviting users if pending migrations appear.</div>
                 </div>
+                <div class="kv" id="migration-readiness" style="margin-top:14px;">
+                  <div>Migration Flags</div><div>Loading feature flag state.</div>
+                  <div>Next</div><div>Keep migration flags disabled unless running a canary.</div>
+                </div>
                 <div class="toolbar" style="margin-top:12px;">
                   <button id="run-state-migrations">Run Migrations</button>
                 </div>
@@ -1810,6 +1814,19 @@ Skills: installed capabilities</pre>
           storageReadiness?.status === "migration_needed" ? "" : "none";
       }
 
+      function renderMigrationReadiness(migrationReadiness) {
+        const flags = migrationReadiness?.flags || {};
+        const enabled = migrationReadiness?.enabled || [];
+        const flagSummary = Object.values(flags)
+          .map((flag) => flag.env + "=" + (flag.enabled ? "on" : "off"))
+          .join(", ");
+        renderKV("migration-readiness", [
+          ["flags", migrationReadiness?.allDisabled ? "all disabled" : "enabled: " + enabled.join(", ")],
+          ["env", flagSummary || "none"],
+          ["next", migrationReadiness?.next || "Keep migration flags disabled unless running a canary."],
+        ]);
+      }
+
       function renderFeishuSetupSummary(config) {
         const feishu = config.channels?.feishu || {};
         const setup = feishu.setup || {};
@@ -2146,6 +2163,7 @@ Skills: installed capabilities</pre>
         renderSetupGuide(payload.setupGuide);
         renderQuickTestDiagnostics(payload.quickTestPreflight);
         renderStorageReadiness(payload.storageReadiness);
+        renderMigrationReadiness(payload.migrationReadiness);
         renderWorkspaceDemoPrompts("overview-demo-prompts");
         renderWorkspaceDemoPrompts("chat-demo-prompts");
         document.getElementById("metric-bot").textContent = bot.name;

@@ -32,6 +32,60 @@ test("control plane readiness reports storage migration and adapter status", asy
   assert.equal(unsupported.adapterReady, false);
 });
 
+test("control plane readiness reports hard isolation status", async () => {
+  const { buildSecurityReadiness } = await importFresh("../../src/control-plane-readiness-service.mjs");
+
+  const appOnly = buildSecurityReadiness({
+    runtime: {
+      isolation: {
+        mode: "none",
+        verified: false,
+      },
+    },
+  });
+  const unverified = buildSecurityReadiness({
+    runtime: {
+      isolation: {
+        mode: "container",
+        verified: false,
+      },
+    },
+  });
+  const verified = buildSecurityReadiness({
+    runtime: {
+      isolation: {
+        mode: "microvm",
+        verified: true,
+        lastProbe: {
+          status: "pass",
+          checkedAt: "2026-06-25T00:00:00.000Z",
+          summary: "passed",
+        },
+      },
+    },
+  });
+  const manuallyMarked = buildSecurityReadiness({
+    runtime: {
+      isolation: {
+        mode: "container",
+        verified: true,
+        lastProbe: null,
+      },
+    },
+  });
+
+  assert.equal(appOnly.status, "application_only");
+  assert.equal(appOnly.readyForExternalUsers, false);
+  assert.match(appOnly.next, /hard isolation is not configured/);
+  assert.equal(unverified.status, "verification_needed");
+  assert.equal(unverified.readyForExternalUsers, false);
+  assert.match(unverified.next, /npm run isolation:probe/);
+  assert.equal(manuallyMarked.status, "verification_needed");
+  assert.equal(manuallyMarked.readyForExternalUsers, false);
+  assert.equal(verified.status, "hard_isolation_ready");
+  assert.equal(verified.readyForExternalUsers, true);
+});
+
 test("control plane readiness builds a Telegram setup guide", async () => {
   await withTempHome(async (botHome) => {
     const service = await importFresh("../../src/control-plane-readiness-service.mjs");
@@ -131,4 +185,24 @@ test("control plane readiness preflight ignores the first-message step", async (
   assert.equal(blocked.readyForIm, false);
   assert.deepEqual(blocked.missingSteps.map((step) => step.id), ["configure_channel"]);
   assert.match(blocked.message, /Connect: missing/);
+});
+
+test("control plane readiness reports migration feature flags", async () => {
+  const { buildMigrationReadiness } = await importFresh("../../src/control-plane-readiness-service.mjs");
+
+  const stable = buildMigrationReadiness({});
+  const enabled = buildMigrationReadiness({
+    CODEXBRIDGE_RUN_EXECUTOR: "true",
+    CODEXBRIDGE_FEISHU_MESSAGE_FLOW: "yes",
+    CODEXBRIDGE_PENDING_QUEUE: "1",
+  });
+
+  assert.equal(stable.allDisabled, true);
+  assert.equal(stable.flags.feishuMessageFlow.enabled, false);
+  assert.equal(stable.flags.telegramMessageFlow.enabled, false);
+  assert.match(stable.next, /stable runtime paths/);
+  assert.equal(enabled.allDisabled, false);
+  assert.deepEqual(enabled.enabled, ["runExecutor", "feishuMessageFlow", "pendingQueue"]);
+  assert.equal(enabled.flags.runExecutor.env, "CODEXBRIDGE_RUN_EXECUTOR");
+  assert.equal(enabled.flags.feishuMessageFlow.env, "CODEXBRIDGE_FEISHU_MESSAGE_FLOW");
 });

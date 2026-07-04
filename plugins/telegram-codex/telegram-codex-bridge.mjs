@@ -14,7 +14,9 @@ import {
   writeConfig,
 } from "../../src/config.mjs";
 import { buildWorkspacePrompt } from "../../src/workspace-context.mjs";
-import { buildCommandConfig as buildRunnerCommandConfig, startCliTurn } from "../../src/codex-runner.mjs";
+import { buildCommandConfig as buildRunnerCommandConfig } from "../../src/codex-runner.mjs";
+import { isMigrationFeatureEnabled } from "../../src/runtime/feature-flags.mjs";
+import { runPreparedTelegramCodexTurn } from "../../src/telegram/prepared-runner.mjs";
 import { cronMatchesDate, minuteKey, parseCronExpression } from "../../src/cron-utils.mjs";
 import { findRunningGoal, findRunningGoalForChat, launchGoal as launchSharedGoal, requestGoalStop } from "../../src/goal-controller.mjs";
 import {
@@ -44,14 +46,9 @@ import { canUseGoal, canUseSchedule } from "../../src/capability-policy.mjs";
 import { getUserCredits } from "../../src/user-credits.mjs";
 import {
   createQueuedRun,
-  markRunCompleted,
   markRunDenied,
-  markRunFailed,
-  markRunRunning,
-  markRunStopped,
 } from "../../src/run-service.mjs";
-import { settleFailedRunBilling } from "../../src/billing-service.mjs";
-import { prepareChatRequest } from "../../src/chat-request-service.mjs";
+import { chargePreparedChatRequest, prepareChatRequest } from "../../src/chat-request-service.mjs";
 import { appendConversationLogEvent } from "../../src/conversation-log.mjs";
 import {
   buildUserId,
@@ -294,6 +291,13 @@ function renderBusyMessage(sessionLabel, type = "request") {
   return [
     `${subject} is already running on [${sessionLabel}].`,
     "Please wait for it to finish, or use /stop if you want to cancel it before sending another request.",
+  ].join("\n");
+}
+
+function renderQueuedMessage(sessionLabel, position) {
+  return [
+    `Queued on [${sessionLabel}] at position ${position}.`,
+    "No credits have been charged yet. Billing happens when this request starts.",
   ].join("\n");
 }
 
@@ -1784,6 +1788,8 @@ async function processUpdate(update, context) {
   const mode = session.cliSessionRef ? "Codex resume" : "Codex";
   const runningJob = findRunningJob(context.runningJobs, chatId, activeLabel);
   const runningGoal = findRunningGoalForChat(context.runningGoals, chatId);
+  const usePendingQueue = isMigrationFeatureEnabled("pendingQueue");
+  const routeKey = getRunningJobKey(chatId, activeLabel);
 
   if (!normalizedText) {
     return;
@@ -1814,7 +1820,7 @@ async function processUpdate(update, context) {
     return;
   }
 
-  if (runningJob) {
+  if (runningJob && !usePendingQueue) {
     const deniedRun = await createQueuedRun({
       userId: accessUser?.id || buildUserId(envelope.channel, envelope.userId),
       conversationId: routedSession.sessionKey || activeLabel,
@@ -1862,6 +1868,7 @@ async function processUpdate(update, context) {
     messageId: envelope.messageId,
     conversationId: routedSession.sessionKey || activeLabel,
     content: normalizedText,
+    deferCharge: usePendingQueue,
     botHome: context.botHome,
   });
   if (!preparedRequest.ok) {
@@ -1917,43 +1924,14 @@ async function processUpdate(update, context) {
     );
     return;
   }
-  const run = preparedRequest.run;
-  const chargeResult = preparedRequest.charged;
-  await appendConversationLogEvent({
-    runId: run.runId,
-    userId: run.userId,
-    channel: envelope.channel,
-    chatType: envelope.chatType,
-    chatId: envelope.chatId,
-    messageId: envelope.messageId,
-    conversationId: routedSession.sessionKey || activeLabel,
-    direction: "input",
-    content: normalizedText,
-    metadata: {
-      hasUploadedDocument: Boolean(uploadedDocument),
-      costSource: chargeResult.costSource,
-      creditsCharged: chargeResult.charged,
-      policy: preparedRequest.policy,
-    },
-  }, context.botHome).catch((error) => {
-    logBridgeEvent("telegram conversation input log failed", {
-      chatId,
-      activeLabel,
-      runId: run.runId,
-      error: error.message,
-    });
-  });
-  await markRunRunning(run.runId, {
-    costSource: chargeResult.costSource,
-    creditsCharged: chargeResult.charged,
-  }, context.botHome);
-
-  await sendMessage(
-    context.token,
-    message.chat.id,
-    renderRunningMessage(normalizedText, activeLabel, mode),
-    message.message_id,
-  );
+  if (runningJob && usePendingQueue) {
+    await sendMessage(
+      context.token,
+      message.chat.id,
+      renderQueuedMessage(activeLabel, 1),
+      message.message_id,
+    );
+  }
 
   const promptText = uploadedDocument
     ? [
@@ -1964,85 +1942,141 @@ async function processUpdate(update, context) {
       ].join("\n")
     : normalizedText;
 
-  const prompt = await buildWorkspacePrompt(promptText);
+  const pendingBefore = context.pendingCounts?.get(routeKey) || 0;
+  if (runningJob && usePendingQueue) {
+    await sendMessage(
+      context.token,
+      message.chat.id,
+      renderQueuedMessage(activeLabel, pendingBefore + 1),
+      message.message_id,
+    );
+  }
+  if (usePendingQueue) {
+    context.pendingCounts?.set(routeKey, pendingBefore + 1);
+  }
 
-  const started = startCliTurn(prompt, session.cliSessionRef, context.commandConfig);
-  const job = {
-    child: started.child,
-    stopRequested: false,
-    startedAt: new Date().toISOString(),
-  };
-  registerRunningJob(context.runningJobs, chatId, activeLabel, job);
-  logBridgeEvent("codex job started", {
-    chatId,
-    activeLabel,
-    mode,
-    startedAt: job.startedAt,
-    hasSessionRef: Boolean(session.cliSessionRef),
-  });
-
-  void (async () => {
-    const finalResult = await started.result;
-    unregisterRunningJob(context.runningJobs, chatId, activeLabel, job);
-
-    if (finalResult.ok && finalResult.cliSessionRef) {
-      session.cliSessionRef = finalResult.cliSessionRef;
-      session.updatedAt = new Date().toISOString();
-      await writeRouterState(context.routerStatePath, state);
-    }
-
-    logBridgeEvent("codex job finished", {
-      chatId,
-      activeLabel,
-      ok: finalResult.ok,
-      exitCode: finalResult.exitCode,
-      signal: finalResult.signal,
-      stopRequested: job.stopRequested,
-      sessionRef: finalResult.cliSessionRef,
-      outputPreview: typeof finalResult.output === "string"
-        ? finalResult.output.slice(0, 120)
-        : "",
-    });
-
-    const messageText = job.stopRequested && !finalResult.ok
-      ? renderInterruptedResult(finalResult)
-      : renderCodexResult(finalResult);
-
-    if (finalResult.ok) {
-      await markRunCompleted(run.runId, {
-        codexThreadId: finalResult.cliSessionRef || "",
-        output: messageText,
-      }, context.botHome);
-    } else if (job.stopRequested) {
-      await markRunStopped(run.runId, "user_stop", {
-        codexThreadId: finalResult.cliSessionRef || "",
-        outputPreview: typeof messageText === "string" ? messageText.slice(0, 500) : "",
-        error: finalResult.stderr || finalResult.output || "Codex failed.",
-      }, context.botHome);
-    } else {
-      await markRunFailed(run.runId, finalResult.stderr || finalResult.output || "Codex failed.", {
-        codexThreadId: finalResult.cliSessionRef || "",
-        outputPreview: typeof messageText === "string" ? messageText.slice(0, 500) : "",
-      }, context.botHome);
-      await settleFailedRunBilling({
-        userId: run.userId,
-        chargeResult,
-        failureType: "failed",
-        botHome: context.botHome,
+  const runTurn = async () => {
+    const chargedRequest = usePendingQueue
+      ? await chargePreparedChatRequest(preparedRequest, { botHome: context.botHome })
+      : preparedRequest;
+    if (!chargedRequest.ok) {
+      await appendConversationLogEvent({
+        runId: chargedRequest.run?.runId,
+        userId: chargedRequest.user?.id,
         channel: envelope.channel,
         chatType: envelope.chatType,
         chatId: envelope.chatId,
         messageId: envelope.messageId,
-        runId: run.runId,
-      }).catch((error) => {
-        logBridgeEvent("telegram refund failed", {
+        conversationId: routedSession.sessionKey || activeLabel,
+        direction: "output",
+        content: chargedRequest.message,
+        metadata: {
+          decision: chargedRequest.decision,
+          reason: chargedRequest.reason,
+          policy: chargedRequest.policy,
+        },
+      }, context.botHome).catch((error) => {
+        logBridgeEvent("telegram conversation output log failed", {
           chatId,
           activeLabel,
-          runId: run.runId,
           error: error.message,
         });
       });
+      await sendMessage(
+        context.token,
+        message.chat.id,
+        chargedRequest.message,
+        message.message_id,
+      );
+      return;
     }
+    const run = chargedRequest.run;
+    const chargeResult = chargedRequest.charged;
+    await appendConversationLogEvent({
+      runId: run.runId,
+      userId: run.userId,
+      channel: envelope.channel,
+      chatType: envelope.chatType,
+      chatId: envelope.chatId,
+      messageId: envelope.messageId,
+      conversationId: routedSession.sessionKey || activeLabel,
+      direction: "input",
+      content: normalizedText,
+      metadata: {
+        hasUploadedDocument: Boolean(uploadedDocument),
+        costSource: chargeResult.costSource,
+        creditsCharged: chargeResult.charged,
+        policy: chargedRequest.policy,
+        queued: Boolean(runningJob && usePendingQueue),
+      },
+    }, context.botHome).catch((error) => {
+      logBridgeEvent("telegram conversation input log failed", {
+        chatId,
+        activeLabel,
+        runId: run.runId,
+        error: error.message,
+      });
+    });
+    const result = await runPreparedTelegramCodexTurn({
+      useRunExecutor: isMigrationFeatureEnabled("runExecutor"),
+      runRecord: run,
+      chargeResult,
+      promptText,
+      botHome: context.botHome,
+      session,
+      routeKey,
+      chatId: envelope.chatId,
+      messageId: envelope.messageId,
+      activeLabel,
+      envelope,
+      commandConfig: context.commandConfig,
+      runningJobs: context.runningJobs,
+      logEvent: ({ event, level = "info", details = {} } = {}) => {
+        writeLogEvent(console.log, {
+          level,
+          event,
+          details,
+        });
+      },
+      onRunning: async (_run, job) => {
+        await sendMessage(
+          context.token,
+          message.chat.id,
+          renderRunningMessage(normalizedText, activeLabel, mode),
+          message.message_id,
+        );
+        logBridgeEvent("codex job started", {
+          chatId,
+          activeLabel,
+          mode,
+          startedAt: job?.startedAt || new Date().toISOString(),
+          hasSessionRef: Boolean(session.cliSessionRef),
+        });
+      },
+      onSessionRef: async (cliSessionRef) => {
+        session.cliSessionRef = cliSessionRef;
+        session.updatedAt = new Date().toISOString();
+        await writeRouterState(context.routerStatePath, state);
+      },
+      deps: {
+        buildWorkspacePrompt,
+        renderCodexResult,
+        renderInterruptedResult,
+      },
+    });
+
+    logBridgeEvent("codex job finished", {
+      chatId,
+      activeLabel,
+      ok: result.ok,
+      stopRequested: result.stopped,
+      sessionRef: result.cliSessionRef,
+      outputPreview: typeof result.messageText === "string"
+        ? result.messageText.slice(0, 120)
+        : "",
+    });
+
+    const messageText = result.messageText || renderRequestFailedMessage(result.errorText);
 
     await sendMessage(
       context.token,
@@ -2061,10 +2095,9 @@ async function processUpdate(update, context) {
       direction: "output",
       content: messageText,
       metadata: {
-        ok: finalResult.ok,
-        stopped: Boolean(job.stopRequested),
-        exitCode: finalResult.exitCode,
-        signal: finalResult.signal,
+        ok: result.ok,
+        stopped: Boolean(result.stopped),
+        events: result.events,
       },
     }, context.botHome).catch((error) => {
       logBridgeEvent("telegram conversation output log failed", {
@@ -2074,33 +2107,22 @@ async function processUpdate(update, context) {
         error: error.message,
       });
     });
-  })().catch(async (error) => {
-    unregisterRunningJob(context.runningJobs, chatId, activeLabel, job);
+  };
+
+  const previous = usePendingQueue
+    ? context.chatQueues?.get(routeKey) ?? Promise.resolve()
+    : Promise.resolve();
+  const next = previous
+    .catch(() => {})
+    .then(runTurn)
+    .catch(async (error) => {
     logBridgeEvent("codex job failed", {
       chatId,
       activeLabel,
       error: error.message,
     });
-    await markRunFailed(run.runId, error, {}, context.botHome).catch(() => {});
-    await settleFailedRunBilling({
-      userId: run.userId,
-      chargeResult,
-      failureType: "start_failed",
-      botHome: context.botHome,
-      channel: envelope.channel,
-      chatType: envelope.chatType,
-      chatId: envelope.chatId,
-      messageId: envelope.messageId,
-      runId: run.runId,
-    }).catch((refundError) => {
-      logBridgeEvent("telegram refund failed", {
-        chatId,
-        activeLabel,
-        runId: run.runId,
-        error: refundError.message,
-      });
-    });
     const failedMessage = renderRequestFailedMessage(error.message);
+    const fallbackRun = preparedRequest.run || {};
     await sendMessage(
       context.token,
       message.chat.id,
@@ -2108,8 +2130,8 @@ async function processUpdate(update, context) {
       message.message_id,
     );
     await appendConversationLogEvent({
-      runId: run.runId,
-      userId: run.userId,
+      runId: fallbackRun.runId,
+      userId: fallbackRun.userId,
       channel: envelope.channel,
       chatType: envelope.chatType,
       chatId: envelope.chatId,
@@ -2125,11 +2147,30 @@ async function processUpdate(update, context) {
       logBridgeEvent("telegram conversation output log failed", {
         chatId,
         activeLabel,
-        runId: run.runId,
+        runId: fallbackRun.runId,
         error: logError.message,
       });
     });
-  });
+    })
+    .finally(() => {
+      if (!usePendingQueue) {
+        return;
+      }
+      const remaining = (context.pendingCounts?.get(routeKey) || 1) - 1;
+      if (remaining <= 0) {
+        context.pendingCounts?.delete(routeKey);
+        if (context.chatQueues?.get(routeKey) === next) {
+          context.chatQueues?.delete(routeKey);
+        }
+        return;
+      }
+      context.pendingCounts?.set(routeKey, remaining);
+    });
+  if (usePendingQueue) {
+    context.chatQueues?.set(routeKey, next);
+  } else {
+    void next;
+  }
 }
 
 async function main() {
@@ -2150,6 +2191,8 @@ async function main() {
   const workspacePaths = await resolveWorkspacePaths(codexCwd);
   const runningJobs = new Map();
   const runningGoals = new Map();
+  const chatQueues = new Map();
+  const pendingCounts = new Map();
   const goalCommandConfig = {
     ...buildGoalCommandConfig(),
     model: runtimeContext.model,
@@ -2226,6 +2269,8 @@ async function main() {
           routerStatePath,
           runningJobs,
           runningGoals,
+          chatQueues,
+          pendingCounts,
           goalCommandConfig,
           commandConfig: {
             ...commandConfig,
@@ -2259,6 +2304,7 @@ export {
   renderCodexResult,
   renderHelpMessage,
   renderBusyMessage,
+  renderQueuedMessage,
   renderRequestFailedMessage,
   renderRunningMessage,
   renderUnsupportedCommandMessage,

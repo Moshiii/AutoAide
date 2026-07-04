@@ -1,7 +1,10 @@
 import { getWorkspacePath, readCliState, readConfig, writeCliState } from "./config.mjs";
+import { createCodexCliAdapter } from "./agents/codex-cli-adapter.mjs";
 import { buildCommandConfig, startCliTurn } from "./codex-runner.mjs";
 import { appendConversationLogEvent } from "./conversation-log.mjs";
 import { UserInputError } from "./errors.mjs";
+import { isMigrationFeatureEnabled } from "./runtime/feature-flags.mjs";
+import { executeRun } from "./runtime/run-executor.mjs";
 import { buildWorkspacePrompt } from "./workspace-context.mjs";
 import { listWorkspaceFiles, summarizeWorkspaceChanges } from "./workspace-files.mjs";
 
@@ -11,6 +14,14 @@ function nowIso() {
 
 function getRunKey(botId, sessionLabel) {
   return `${botId}:${sessionLabel}`;
+}
+
+function normalizeExecutorOutput(result = {}) {
+  return result.output || "Done.";
+}
+
+function normalizeExecutorError(result = {}) {
+  return result.error || result.stderr || result.output || "Chat run failed.";
 }
 
 function summarizeRun(run) {
@@ -103,6 +114,7 @@ export function createWebChatService({ resolveBotHome, activeChatRuns = new Map(
       ...buildCommandConfig(config),
       cwd: getWorkspacePath(botHome),
     };
+    const useRunExecutor = isMigrationFeatureEnabled("runExecutor");
     const run = {
       botId,
       sessionLabel: label,
@@ -128,6 +140,112 @@ export function createWebChatService({ resolveBotHome, activeChatRuns = new Map(
         sessionLabel: label,
       },
     }, botHome).catch(() => {});
+
+    if (useRunExecutor) {
+      const adapter = createCodexCliAdapter(commandConfig);
+      void (async () => {
+        const prompt = await buildWorkspacePrompt(nextPrompt, { botHome });
+        const execution = await executeRun({
+          record: {
+            userId: "local-web",
+            channel: "web",
+            chatType: "direct",
+            chatId: botId,
+            conversationId: label,
+            visibility: "private",
+          },
+          agentProvider: "codex-cli",
+          botHome,
+          agentRequest: {
+            prompt,
+            sessionRef: session.cliSessionRef,
+            sessionKey: key,
+            onChild: (child) => {
+              run.child = child;
+            },
+          },
+          billing: {
+            userId: "local-web",
+            channel: "web",
+            chatType: "direct",
+            chatId: botId,
+            messageId: "",
+          },
+        }, {
+          agentAdapter: adapter,
+        });
+        const latestState = await readCliState(botHome);
+        latestState.sessions[label] = {
+          ...(latestState.sessions[label] ?? session),
+          label,
+          cliSessionRef: execution.result.cliSessionRef || latestState.sessions[label]?.cliSessionRef || null,
+          createdAt: latestState.sessions[label]?.createdAt || session.createdAt || nowIso(),
+          updatedAt: nowIso(),
+        };
+        latestState.activeSessionLabel = label;
+        await writeCliState(latestState, botHome);
+        run.finishedAt = nowIso();
+        run.child = null;
+        const workspaceAfter = await listWorkspaceFiles(botHome).catch(() => []);
+        run.workspaceChanges = summarizeWorkspaceChanges(workspaceBefore, workspaceAfter);
+        if (execution.result.ok) {
+          run.status = "completed";
+          run.output = normalizeExecutorOutput(execution.result);
+          await appendConversationLogEvent({
+            userId: "local-web",
+            channel: "web",
+            chatType: "direct",
+            chatId: botId,
+            conversationId: label,
+            direction: "output",
+            content: run.output,
+            metadata: {
+              sessionLabel: label,
+              ok: true,
+              runId: execution.run?.runId,
+            },
+          }, botHome).catch(() => {});
+          return;
+        }
+        run.status = execution.result.stopped ? "stopped" : "failed";
+        run.error = normalizeExecutorError(execution.result);
+        await appendConversationLogEvent({
+          userId: "local-web",
+          channel: "web",
+          chatType: "direct",
+          chatId: botId,
+          conversationId: label,
+          direction: "output",
+          content: run.error,
+          metadata: {
+            sessionLabel: label,
+            ok: false,
+            stopped: Boolean(execution.result.stopped),
+            runId: execution.run?.runId,
+          },
+        }, botHome).catch(() => {});
+      })().catch((error) => {
+        run.finishedAt = nowIso();
+        run.child = null;
+        run.status = "failed";
+        run.error = error.message;
+        void appendConversationLogEvent({
+          userId: "local-web",
+          channel: "web",
+          chatType: "direct",
+          chatId: botId,
+          conversationId: label,
+          direction: "output",
+          content: run.error,
+          metadata: {
+            sessionLabel: label,
+            ok: false,
+          },
+        }, botHome).catch(() => {});
+      });
+
+      return await readChatStatus(botId, label);
+    }
 
     const started = startCliTurn(await buildWorkspacePrompt(nextPrompt, { botHome }), session.cliSessionRef, commandConfig);
     run.child = started.child;

@@ -1,0 +1,22 @@
+{
+  "events": [
+    {
+      "id": "tool_1",
+      "type": "tool.started",
+      "provider": "codex-cli",
+      "payload": {
+        "label": "read_file",
+        "summary": "Using read_file..."
+      }
+    },
+    {
+      "id": "tool_1",
+      "type": "tool.completed",
+      "provider": "codex-cli",
+      "payload": {
+        "label": "read_file",
+        "summary": "Finished read_file."
+      }
+    }
+  ]
+}

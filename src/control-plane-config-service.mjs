@@ -66,6 +66,10 @@ export function redactConfigSecrets(config) {
         appSecret: redactSecret(config.channels?.feishu?.appSecret),
         verificationToken: redactSecret(config.channels?.feishu?.verificationToken),
         encryptKey: redactSecret(config.channels?.feishu?.encryptKey),
+        callback: {
+          ...(config.channels?.feishu?.callback || {}),
+          signingSecret: redactSecret(config.channels?.feishu?.callback?.signingSecret),
+        },
       },
     },
   };
@@ -111,6 +115,11 @@ export function applySafeConfigPatch(currentConfig, patch) {
   const currentFeishuEncryptKey = currentConfig.channels?.feishu?.encryptKey || "";
   if (isRedactedSecret(nextFeishuEncryptKey)) {
     nextConfig.channels.feishu.encryptKey = currentFeishuEncryptKey;
+  }
+  const nextFeishuCallbackSigningSecret = nextConfig.channels?.feishu?.callback?.signingSecret;
+  const currentFeishuCallbackSigningSecret = currentConfig.channels?.feishu?.callback?.signingSecret || "";
+  if (isRedactedSecret(nextFeishuCallbackSigningSecret)) {
+    nextConfig.channels.feishu.callback.signingSecret = currentFeishuCallbackSigningSecret;
   }
   return nextConfig;
 }

@@ -1,0 +1,12 @@
+{
+  "events": [
+    {
+      "id": "msg_1",
+      "type": "message.completed",
+      "provider": "codex-cli",
+      "payload": {
+        "text": "Done from fixture."
+      }
+    }
+  ]
+}

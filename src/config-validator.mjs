@@ -1,6 +1,7 @@
 const SUPPORTED_CHANNELS = new Set(["telegram", "feishu"]);
 const SUPPORTED_STORAGE_PROVIDERS = new Set(["json", "sqlite"]);
 const SUPPORTED_FEISHU_DOCUMENT_OUTPUTS = new Set(["feishu_doc", "attachment", "both"]);
+const SUPPORTED_ISOLATION_MODES = new Set(["none", "system_user", "container", "microvm", "macos_sandbox", "remote_worker"]);
 const REDACTED_SECRET = "[redacted]";
 
 function isPlainObject(value) {
@@ -13,6 +14,10 @@ function isStringArray(value) {
 
 function addError(errors, path, message) {
   errors.push({ path, message });
+}
+
+function isPositiveInteger(value) {
+  return Number.isInteger(Number(value)) && Number(value) > 0;
 }
 
 function validateTelegramConfig(telegram, errors) {
@@ -81,6 +86,30 @@ function validateFeishuConfig(feishu, errors) {
       }
     }
   }
+  if (feishu.callback !== undefined) {
+    if (!isPlainObject(feishu.callback)) {
+      addError(errors, "channels.feishu.callback", "Feishu callback config must be an object.");
+    } else {
+      if (typeof feishu.callback.enabled !== "boolean") {
+        addError(errors, "channels.feishu.callback.enabled", "Feishu callback enabled must be a boolean.");
+      }
+      if (feishu.callback.host !== undefined && typeof feishu.callback.host !== "string") {
+        addError(errors, "channels.feishu.callback.host", "Feishu callback host must be a string.");
+      }
+      if (feishu.callback.path !== undefined && (typeof feishu.callback.path !== "string" || !feishu.callback.path.startsWith("/"))) {
+        addError(errors, "channels.feishu.callback.path", "Feishu callback path must start with /.");
+      }
+      if (feishu.callback.port !== null && feishu.callback.port !== undefined) {
+        const port = Number(feishu.callback.port);
+        if (!Number.isInteger(port) || port < 0 || port > 65535) {
+          addError(errors, "channels.feishu.callback.port", "Feishu callback port must be an integer from 0 to 65535.");
+        }
+      }
+      if (feishu.callback.signingSecret === REDACTED_SECRET) {
+        addError(errors, "channels.feishu.callback.signingSecret", "Redacted Feishu callback signingSecret cannot be persisted.");
+      }
+    }
+  }
 }
 
 function validateStorageConfig(storage, errors) {
@@ -90,6 +119,50 @@ function validateStorageConfig(storage, errors) {
   }
   if (!SUPPORTED_STORAGE_PROVIDERS.has(String(storage.provider || "").trim())) {
     addError(errors, "storage.provider", "Storage provider must be json or sqlite.");
+  }
+}
+
+function validateRuntimeConfig(runtime, errors) {
+  if (!isPlainObject(runtime)) {
+    addError(errors, "runtime", "Runtime config must be an object.");
+    return;
+  }
+  if (typeof runtime.model !== "string") {
+    addError(errors, "runtime.model", "Runtime model must be a string.");
+  }
+  if (!isPositiveInteger(runtime.maxRunMs)) {
+    addError(errors, "runtime.maxRunMs", "Runtime maxRunMs must be a positive integer.");
+  }
+  if (!isPositiveInteger(runtime.maxOutputBytes)) {
+    addError(errors, "runtime.maxOutputBytes", "Runtime maxOutputBytes must be a positive integer.");
+  }
+  if (!isPlainObject(runtime.isolation)) {
+    addError(errors, "runtime.isolation", "Runtime isolation config must be an object.");
+    return;
+  }
+  if (!SUPPORTED_ISOLATION_MODES.has(String(runtime.isolation.mode || "").trim())) {
+    addError(errors, "runtime.isolation.mode", "Runtime isolation mode must be none, system_user, container, microvm, macos_sandbox, or remote_worker.");
+  }
+  if (typeof runtime.isolation.verified !== "boolean") {
+    addError(errors, "runtime.isolation.verified", "Runtime isolation verified must be a boolean.");
+  }
+  if (typeof runtime.isolation.notes !== "string") {
+    addError(errors, "runtime.isolation.notes", "Runtime isolation notes must be a string.");
+  }
+  if (runtime.isolation.lastProbe !== null && runtime.isolation.lastProbe !== undefined) {
+    if (!isPlainObject(runtime.isolation.lastProbe)) {
+      addError(errors, "runtime.isolation.lastProbe", "Runtime isolation lastProbe must be null or an object.");
+    } else {
+      if (!new Set(["pass", "fail", "blocked"]).has(String(runtime.isolation.lastProbe.status || "").trim())) {
+        addError(errors, "runtime.isolation.lastProbe.status", "Runtime isolation lastProbe status must be pass, fail, or blocked.");
+      }
+      if (typeof runtime.isolation.lastProbe.checkedAt !== "string") {
+        addError(errors, "runtime.isolation.lastProbe.checkedAt", "Runtime isolation lastProbe checkedAt must be a string.");
+      }
+      if (typeof runtime.isolation.lastProbe.summary !== "string") {
+        addError(errors, "runtime.isolation.lastProbe.summary", "Runtime isolation lastProbe summary must be a string.");
+      }
+    }
   }
 }
 
@@ -108,11 +181,7 @@ export function validateBotConfig(config = {}) {
   if (typeof config.enabled !== "boolean") {
     addError(errors, "enabled", "Bot config enabled must be a boolean.");
   }
-  if (!isPlainObject(config.runtime)) {
-    addError(errors, "runtime", "Runtime config must be an object.");
-  } else if (typeof config.runtime.model !== "string") {
-    addError(errors, "runtime.model", "Runtime model must be a string.");
-  }
+  validateRuntimeConfig(config.runtime, errors);
   validateStorageConfig(config.storage, errors);
   if (!isPlainObject(config.channels)) {
     addError(errors, "channels", "Channels config must be an object.");

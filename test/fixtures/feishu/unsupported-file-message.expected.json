@@ -1,0 +1,20 @@
+{
+  "classification": {
+    "action": "unsupported_payload",
+    "reason": "unsupported_message_type",
+    "messageId": "om_file_fixture",
+    "chatId": "oc_private_fixture",
+    "processedMessageIds": ["om_file_fixture"]
+  },
+  "envelope": {
+    "channel": "feishu",
+    "chatType": "direct",
+    "chatId": "oc_private_fixture",
+    "userId": "ou_fixture_user",
+    "messageId": "om_file_fixture",
+    "isDirect": true,
+    "isGroup": false,
+    "explicitlyMentionedBot": true,
+    "text": ""
+  }
+}

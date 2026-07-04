@@ -125,6 +125,10 @@ export function getRunsStatePath(botHome = resolveBotHome()) {
   return path.join(botHome, "runs.jsonl");
 }
 
+export function getRuntimeAuditLogPath(botHome = resolveBotHome()) {
+  return path.join(botHome, "runtime-audit.jsonl");
+}
+
 export function getAdminAuditLogPath(botHome = resolveBotHome()) {
   return path.join(botHome, "admin-audit.jsonl");
 }
@@ -222,6 +226,14 @@ export function createDefaultBotConfig() {
     status: "stopped",
     runtime: {
       model: "gpt-5.4",
+      maxRunMs: 30 * 60 * 1000,
+      maxOutputBytes: 2 * 1024 * 1024,
+      isolation: {
+        mode: "none",
+        verified: false,
+        notes: "",
+        lastProbe: null,
+      },
     },
     storage: {
       provider: "json",
@@ -270,6 +282,13 @@ export function createDefaultBotConfig() {
           allowAttachmentInput: true,
           allowCloudDocLinks: true,
         },
+        callback: {
+          enabled: false,
+          host: "127.0.0.1",
+          port: null,
+          path: "/webhook/card",
+          signingSecret: "",
+        },
         metadata: {
           chats: {},
           users: {},
@@ -282,6 +301,35 @@ export function createDefaultBotConfig() {
       lastStoppedAt: null,
       logPath: null,
     },
+  };
+}
+
+function normalizePositiveInteger(value, fallback) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function normalizeRuntimeIsolation(value = {}) {
+  const defaults = createDefaultBotConfig().runtime.isolation;
+  const allowedModes = new Set(["none", "system_user", "container", "microvm", "macos_sandbox", "remote_worker"]);
+  const mode = String(value?.mode || defaults.mode).trim().toLowerCase();
+  const lastProbe = value?.lastProbe && typeof value.lastProbe === "object"
+    ? {
+        status: ["pass", "fail", "blocked"].includes(String(value.lastProbe.status || "").trim())
+          ? String(value.lastProbe.status).trim()
+          : "fail",
+        checkedAt: typeof value.lastProbe.checkedAt === "string" ? value.lastProbe.checkedAt.trim() : "",
+        mode: typeof value.lastProbe.mode === "string" ? value.lastProbe.mode.trim() : mode,
+        workspaceRoot: typeof value.lastProbe.workspaceRoot === "string" ? value.lastProbe.workspaceRoot.trim() : "",
+        forbiddenPath: typeof value.lastProbe.forbiddenPath === "string" ? value.lastProbe.forbiddenPath.trim() : "",
+        summary: typeof value.lastProbe.summary === "string" ? value.lastProbe.summary.trim() : "",
+      }
+    : defaults.lastProbe;
+  return {
+    mode: allowedModes.has(mode) ? mode : defaults.mode,
+    verified: Boolean(value?.verified),
+    notes: typeof value?.notes === "string" ? value.notes.trim() : defaults.notes,
+    lastProbe,
   };
 }
 
@@ -343,7 +391,28 @@ function normalizeFeishuConfig(feishu = {}) {
       allowAttachmentInput: feishu.documentHandling?.allowAttachmentInput ?? createDefaultBotConfig().channels.feishu.documentHandling.allowAttachmentInput,
       allowCloudDocLinks: feishu.documentHandling?.allowCloudDocLinks ?? createDefaultBotConfig().channels.feishu.documentHandling.allowCloudDocLinks,
     },
+    callback: {
+      ...createDefaultBotConfig().channels.feishu.callback,
+      ...(feishu.callback && typeof feishu.callback === "object" ? feishu.callback : {}),
+      enabled: Boolean(feishu.callback?.enabled),
+      host: typeof feishu.callback?.host === "string" && feishu.callback.host.trim()
+        ? feishu.callback.host.trim()
+        : createDefaultBotConfig().channels.feishu.callback.host,
+      port: normalizeNullablePort(feishu.callback?.port),
+      path: typeof feishu.callback?.path === "string" && feishu.callback.path.trim().startsWith("/")
+        ? feishu.callback.path.trim()
+        : createDefaultBotConfig().channels.feishu.callback.path,
+      signingSecret: feishu.callback?.signingSecret ?? createDefaultBotConfig().channels.feishu.callback.signingSecret,
+    },
   };
+}
+
+function normalizeNullablePort(port) {
+  if (port == null || port === "") {
+    return null;
+  }
+  const parsed = Number(port);
+  return Number.isInteger(parsed) && parsed >= 0 && parsed <= 65535 ? parsed : null;
 }
 
 function normalizeTelegramConfig(telegram = {}) {
@@ -412,6 +481,9 @@ export function normalizeBotConfig(config = {}) {
     enabled: config.enabled ?? normalizedTelegram.enabled ?? defaults.enabled,
     runtime: {
       model: runtimeConfig.model ?? defaults.runtime.model,
+      maxRunMs: normalizePositiveInteger(runtimeConfig.maxRunMs, defaults.runtime.maxRunMs),
+      maxOutputBytes: normalizePositiveInteger(runtimeConfig.maxOutputBytes, defaults.runtime.maxOutputBytes),
+      isolation: normalizeRuntimeIsolation(runtimeConfig.isolation),
     },
     storage: normalizeStorageConfig(storageConfig),
     channels: {

@@ -56,7 +56,7 @@ test("control plane detail service composes bot detail readiness fields", async 
     const { createBot } = await importFresh("../../src/bots.mjs");
     const { getBotControlPlaneDetail } = await importFresh("../../src/control-plane-detail-service.mjs");
 
-    await createBot({
+    const bot = await createBot({
       id: "detailbot",
       name: "Detail Bot",
       config: {
@@ -82,6 +82,12 @@ test("control plane detail service composes bot detail readiness fields", async 
     assert.deepEqual(detail.access.privateChats, ["Alice (10)"]);
     assert.equal(detail.setupGuide.total, 5);
     assert.equal(detail.storageReadiness.provider, "json");
+    assert.equal(detail.migrationReadiness.allDisabled, true);
+    assert.equal(detail.migrationReadiness.flags.runExecutor.env, "CODEXBRIDGE_RUN_EXECUTOR");
+    assert.equal(detail.migrationReadiness.flags.feishuMessageFlow.env, "CODEXBRIDGE_FEISHU_MESSAGE_FLOW");
+    assert.equal(detail.migrationReadiness.flags.telegramMessageFlow.env, "CODEXBRIDGE_TELEGRAM_MESSAGE_FLOW");
+    assert.equal(detail.securityReadiness.status, "application_only");
+    assert.equal(detail.securityReadiness.readyForExternalUsers, false);
     assert.equal(detail.quickTestPreflight.readyForIm, false);
   });
 });

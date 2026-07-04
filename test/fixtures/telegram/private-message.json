@@ -1,0 +1,15 @@
+{
+  "message_id": 1001,
+  "from": {
+    "id": 111,
+    "is_bot": false,
+    "username": "fixture_user"
+  },
+  "chat": {
+    "id": 111,
+    "type": "private",
+    "username": "fixture_user"
+  },
+  "date": 1782360000,
+  "text": "hello codexbridge"
+}

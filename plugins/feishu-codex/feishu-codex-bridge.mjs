@@ -4,32 +4,53 @@ import { fileURLToPath } from "node:url";
 
 import * as Lark from "@larksuiteoapi/node-sdk";
 
-import { buildCommandConfig, startCliTurn } from "../../src/codex-runner.mjs";
+import { applyRunPolicyToCommandConfig, buildCommandConfig } from "../../src/codex-runner.mjs";
 import {
   getChannelStatePath,
   getFeishuBridgePidPath,
-  readCliState,
+  getWorkspacePath,
   readConfig,
   resolveBotHome,
-  writeCliState,
   writeConfig,
 } from "../../src/config.mjs";
 import { buildWorkspacePrompt } from "../../src/workspace-context.mjs";
 import { normalizeFeishuEnvelope } from "../../src/channel-envelope.mjs";
-import { resolveConversationIdentity } from "../../src/session-routing.mjs";
-import { canUseGoal, canUseSchedule } from "../../src/capability-policy.mjs";
+import { isMigrationFeatureEnabled } from "../../src/runtime/feature-flags.mjs";
+import { QuestionBroker } from "../../src/runtime/question-broker.mjs";
+import { createDefaultRunPolicy } from "../../src/policy/run-policy.mjs";
+import { createDefaultWorkspacePolicy } from "../../src/policy/workspace-policy.mjs";
+import { PermissionBroker } from "../../src/permissions/permission-broker.mjs";
+import { FeishuPermissionBroker } from "../../src/permissions/feishu-permission-broker.mjs";
+import { PersistentCallbackNonceStore } from "../../src/security/callback-nonce-store.mjs";
+import { routeFeishuCardAction } from "../../src/feishu/callback-router.mjs";
+import { startFeishuCallbackServer } from "../../src/feishu/callback-server.mjs";
+import { runPreparedFeishuCodexTurn } from "../../src/feishu/prepared-runner.mjs";
+import { FeishuQuestionBroker } from "../../src/feishu/question-broker.mjs";
+import { normalizeFeishuText, sendFeishuCard, sendFeishuText, updateFeishuCard } from "../../src/feishu/client.mjs";
+import { handleFeishuSlashCommand, parseSlashCommand as parseFeishuSlashCommand } from "../../src/feishu/command-router.mjs";
+import { FeishuCardUpdateController } from "../../src/feishu/card-updater.mjs";
+import { FEISHU_CARD_STATE } from "../../src/feishu/cards.mjs";
+import {
+  classifyFeishuMessageEvent,
+} from "../../src/feishu/event-gateway.mjs";
+import {
+  createFeishuEventDispatcher,
+  createFeishuGatewayClients,
+} from "../../src/feishu/gateway.mjs";
+import {
+  ensureFeishuCliSession,
+  ensureFeishuConversationState,
+  readFeishuRouterState,
+  writeFeishuRouterState,
+} from "../../src/feishu/router-state.mjs";
 import { getUserCredits } from "../../src/user-credits.mjs";
 import {
   createQueuedRun,
-  markRunCompleted,
   markRunDenied,
-  markRunFailed,
-  markRunRunning,
-  markRunStopped,
 } from "../../src/run-service.mjs";
-import { settleFailedRunBilling } from "../../src/billing-service.mjs";
-import { prepareChatRequest } from "../../src/chat-request-service.mjs";
+import { chargePreparedChatRequest, prepareChatRequest } from "../../src/chat-request-service.mjs";
 import { appendConversationLogEvent } from "../../src/conversation-log.mjs";
+import { writeLogEvent } from "../../src/structured-logger.mjs";
 import {
   buildUserId,
   canUseGroupChat,
@@ -41,24 +62,11 @@ import {
 const DEFAULT_BOT_HOME = resolveBotHome();
 const DEFAULT_PID_PATH = getFeishuBridgePidPath(DEFAULT_BOT_HOME);
 const ROUTER_STATE_PATH = path.join(getChannelStatePath("feishu", DEFAULT_BOT_HOME), "router.json");
+const CALLBACK_NONCE_PATH = path.join(getChannelStatePath("feishu", DEFAULT_BOT_HOME), "callback-nonces.json");
 const __filename = fileURLToPath(import.meta.url);
 
 function nowIso() {
   return new Date().toISOString();
-}
-
-async function readJsonFile(filePath, fallback) {
-  try {
-    const raw = await readFile(filePath, "utf8");
-    return JSON.parse(raw);
-  } catch {
-    return fallback;
-  }
-}
-
-async function writeJsonFile(filePath, value) {
-  await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
 async function readPidFile(filePath) {
@@ -110,14 +118,6 @@ async function clearPidFile(filePath) {
   } catch {
     // ignore cleanup failures
   }
-}
-
-function createDefaultRouterState() {
-  return {
-    version: 1,
-    chats: {},
-    processedMessageIds: [],
-  };
 }
 
 export function renderWelcomeMessage() {
@@ -179,38 +179,15 @@ export function renderRequestFailedMessage(errorText = "") {
 }
 
 async function readRouterState(filePath) {
-  const parsed = await readJsonFile(filePath, createDefaultRouterState());
-  return {
-    version: 1,
-    chats: parsed?.chats && typeof parsed.chats === "object" ? parsed.chats : {},
-    processedMessageIds: Array.isArray(parsed?.processedMessageIds) ? parsed.processedMessageIds : [],
-  };
+  return await readFeishuRouterState(filePath);
 }
 
 async function writeRouterState(filePath, state) {
-  await writeJsonFile(filePath, state);
+  await writeFeishuRouterState(filePath, state);
 }
 
 function ensureConversationState(state, envelope) {
-  const { sessionKey, sessionLabel } = resolveConversationIdentity(envelope);
-  if (!state.chats[sessionKey]) {
-    state.chats[sessionKey] = {
-      sessionKey,
-      cliSessionRef: null,
-      sessionLabel,
-      createdAt: nowIso(),
-      updatedAt: nowIso(),
-    };
-  }
-  return state.chats[sessionKey];
-}
-
-function rememberProcessedMessage(state, messageId) {
-  state.processedMessageIds = [...state.processedMessageIds.filter((id) => id !== messageId), messageId].slice(-200);
-}
-
-function hasProcessedMessage(state, messageId) {
-  return state.processedMessageIds.includes(messageId);
+  return ensureFeishuConversationState(state, envelope);
 }
 
 async function captureFeishuMetadata(botHome, event) {
@@ -278,20 +255,19 @@ async function captureFeishuMetadata(botHome, event) {
   }, botHome);
 }
 
-function parseTextMessage(content) {
-  if (!content) {
-    return "";
-  }
-  try {
-    const parsed = JSON.parse(content);
-    return String(parsed?.text || "").trim();
-  } catch {
-    return "";
-  }
-}
-
 function normalizeMentionName(value) {
   return String(value || "").trim().toLowerCase();
+}
+
+function isBotMention(mention, botIdentity) {
+  if (!mention) {
+    return false;
+  }
+  if (botIdentity.openId && mention.id?.open_id === botIdentity.openId) {
+    return true;
+  }
+  const mentionName = normalizeMentionName(mention.name);
+  return Boolean(mentionName) && botIdentity.mentionNames.has(mentionName);
 }
 
 async function resolveBotIdentity(client, appId, config) {
@@ -338,27 +314,6 @@ function rememberBotOpenId(botIdentity, response) {
     return;
   }
   botIdentity.openId = sender.id;
-}
-
-function isBotMention(mention, botIdentity) {
-  if (!mention) {
-    return false;
-  }
-  if (botIdentity.openId && mention.id?.open_id === botIdentity.openId) {
-    return true;
-  }
-  const mentionName = normalizeMentionName(mention.name);
-  return Boolean(mentionName) && botIdentity.mentionNames.has(mentionName);
-}
-
-function hasExplicitMention(event, botIdentity) {
-  if (String(event.message?.chat_type || "").toLowerCase() === "p2p") {
-    return true;
-  }
-  if (!Array.isArray(event.message?.mentions) || event.message.mentions.length === 0) {
-    return false;
-  }
-  return event.message.mentions.some((mention) => isBotMention(mention, botIdentity));
 }
 
 function stripMentionMarkup(text) {
@@ -420,12 +375,7 @@ function normalizeIncomingText(text, event, botIdentity) {
 }
 
 function parseSlashCommand(text) {
-  const normalized = String(text || "").trim();
-  if (!normalized) {
-    return null;
-  }
-  const match = normalized.match(/(?:^|\s)(\/[^\s]+)/);
-  return match?.[1] ? String(match[1]).trim().toLowerCase() : null;
+  return parseFeishuSlashCommand(text);
 }
 
 function buildFeishuPrompt(text, event) {
@@ -504,63 +454,108 @@ export function canFeishuUserAccessChat(user, envelope) {
 }
 
 function normalizeFeishuOutput(text) {
-  const trimmed = String(text || "").trim();
-  if (!trimmed) {
-    return "Done.";
-  }
-  return trimmed.length > 3500 ? `${trimmed.slice(0, 3497)}...` : trimmed;
+  return normalizeFeishuText(text);
 }
 
 function renderRunningMessage(sessionLabel, hasSessionRef) {
   return `Running ${hasSessionRef ? "Codex resume" : "Codex"} on [${sessionLabel}]...`;
 }
 
-function renderQueuedMessage(sessionLabel, aheadCount) {
-  return `Queued on [${sessionLabel}]. ${aheadCount} request(s) ahead.`;
+export function renderQueuedMessage(sessionLabel, position) {
+  return [
+    `Queued on [${sessionLabel}] at position ${position}.`,
+    "No credits have been charged yet. Billing happens when this request starts.",
+  ].join("\n");
 }
 
 async function sendText(client, chatId, text, options = {}) {
-  const content = JSON.stringify({ text: normalizeFeishuOutput(text) });
-  if (options.replyToMessageId) {
-    return client.im.message.reply({
-      path: {
-        message_id: options.replyToMessageId,
-      },
-      data: {
-        msg_type: "text",
-        content,
-      },
-    });
-  }
+  return await sendFeishuText(client, chatId, text, options);
+}
 
-  return client.im.message.create({
-    params: {
-      receive_id_type: "chat_id",
+function createRunCardController(client, chatId, messageId, botIdentity) {
+  return new FeishuCardUpdateController({
+    chatId,
+    replyToMessageId: messageId,
+    sendCard: async ({ chatId: targetChatId, replyToMessageId, card }) => {
+      return await sendFeishuCard(client, targetChatId, card, { replyToMessageId });
     },
-    data: {
-      receive_id: chatId,
-      msg_type: "text",
-      content,
+    updateCard: async ({ messageId: targetMessageId, card }) => {
+      return await updateFeishuCard(client, targetMessageId, card);
+    },
+    sendText: async ({ chatId: targetChatId, replyToMessageId, text }) => {
+      const response = await sendText(client, targetChatId, text, { replyToMessageId });
+      rememberBotOpenId(botIdentity, response);
+      return response;
+    },
+    onResponse: (response) => rememberBotOpenId(botIdentity, response),
+    onError: (error) => {
+      console.error("feishu card update failed", error);
     },
   });
 }
 
+function resolveFeishuCallbackConfig(feishu = {}, env = process.env) {
+  const callback = feishu.callback && typeof feishu.callback === "object" ? feishu.callback : {};
+  const envPort = env.FEISHU_CALLBACK_PORT || env.CODEXBRIDGE_FEISHU_CALLBACK_PORT;
+  const port = callback.port ?? (envPort ? Number(envPort) : null);
+  return {
+    enabled: Boolean(callback.enabled || envPort),
+    host: callback.host || env.FEISHU_CALLBACK_HOST || "127.0.0.1",
+    port,
+    path: callback.path || env.FEISHU_CALLBACK_PATH || "/webhook/card",
+    signingSecret: callback.signingSecret || feishu.appSecret,
+  };
+}
+
+export function resolveFeishuPolicyRole({ user = null, usageUserId = "", config = {} } = {}) {
+  if (user?.status === "admin") {
+    return "owner";
+  }
+  const ownerUserId = String(config.ownerUserId || "").trim();
+  const adminUserIds = Array.isArray(config.adminUserIds)
+    ? config.adminUserIds.map((id) => String(id || "").trim())
+    : [];
+  if (ownerUserId && ownerUserId === usageUserId) {
+    return "owner";
+  }
+  if (adminUserIds.includes(usageUserId)) {
+    return "owner";
+  }
+  return "user";
+}
+
+export function buildFeishuRunCommandConfig({
+  baseCommandConfig,
+  botHome,
+  envelope = {},
+  user = null,
+  usageUserId = "",
+  config = {},
+  enabled = false,
+  env = process.env,
+} = {}) {
+  if (!enabled) {
+    return baseCommandConfig;
+  }
+  const role = resolveFeishuPolicyRole({ user, usageUserId, config });
+  const workspacePolicy = createDefaultWorkspacePolicy({
+    workspaceRoot: getWorkspacePath(botHome),
+    role,
+  });
+  const runPolicy = createDefaultRunPolicy({
+    role,
+    chatType: envelope.chatType,
+  });
+  return applyRunPolicyToCommandConfig(baseCommandConfig, {
+    workspacePolicy,
+    runPolicy,
+    cwd: ".",
+    env,
+  });
+}
+
 async function ensureSession(botHome, chatState) {
-  const cliState = await readCliState(botHome);
-  if (!cliState.sessions[chatState.sessionLabel]) {
-    cliState.sessions[chatState.sessionLabel] = {
-      label: chatState.sessionLabel,
-      cliSessionRef: chatState.cliSessionRef || null,
-      createdAt: chatState.createdAt || nowIso(),
-      updatedAt: nowIso(),
-    };
-  }
-  cliState.sessions[chatState.sessionLabel].updatedAt = nowIso();
-  if (chatState.cliSessionRef) {
-    cliState.sessions[chatState.sessionLabel].cliSessionRef = chatState.cliSessionRef;
-  }
-  await writeCliState(cliState, botHome);
-  return cliState;
+  return await ensureFeishuCliSession(botHome, chatState);
 }
 
 function requestActiveRunStop(child) {
@@ -585,87 +580,29 @@ function requestActiveRunStop(child) {
 }
 
 async function handleSlashCommand(command, chatState, client, chatId, activeRuns, routeKey, botConfig, envelope, options = {}) {
-  if (command === "/start") {
-    await sendText(
-      client,
-      chatId,
-      renderWelcomeMessage(),
-      options,
-    );
-    return true;
-  }
-
-  if (command === "/where") {
-    const sessionRef = chatState.cliSessionRef ? `resume=${chatState.cliSessionRef}` : "resume=not-started";
-    await sendText(client, chatId, `Current session: ${chatState.sessionLabel}\n${sessionRef}`, options);
-    return true;
-  }
-
-  if (command === "/credits") {
-    const userId = options.user?.id || buildUserId("feishu", envelope.userId);
-    const creditsInfo = await getUserCredits(userId, options.botHome || DEFAULT_BOT_HOME);
-    await sendText(client, chatId, renderCreditsStatus(creditsInfo, options.user || null), options);
-    return true;
-  }
-
-  if (command === "/help") {
-    await sendText(
-      client,
-      chatId,
-      renderHelpMessage(),
-      options,
-    );
-    return true;
-  }
-
-  if (command === "/stop") {
-    const stopped = requestActiveRunStop(activeRuns.get(routeKey));
-    await sendText(
-      client,
-      chatId,
-      stopped
-        ? `Stop requested for [${chatState.sessionLabel}].`
-        : `No running task for [${chatState.sessionLabel}].`,
-      options,
-    );
-    return true;
-  }
-
-  if (command === "/goal") {
-    await sendText(
-      client,
-      chatId,
-      canUseGoal(envelope, botConfig || {})
-        ? "Feishu no longer manages goals directly. Use the local CLI or web control plane."
-        : "Only the bot owner or admins can use /goal in group chats.",
-      options,
-    );
-    return true;
-  }
-
-  if (command === "/schedule" || command === "/schedules" || command === "/schedule-stop" || command === "/schedule-run") {
-    await sendText(
-      client,
-      chatId,
-      canUseSchedule(envelope, botConfig || {})
-        ? "Feishu no longer manages schedules directly. Use the local CLI or web control plane."
-        : "Only the bot owner or admins can use /schedule in group chats.",
-      options,
-    );
-    return true;
-  }
-
-  if (command.startsWith("/")) {
-    await sendText(
-      client,
-      chatId,
-      renderUnsupportedCommandMessage(command),
-      options,
-    );
-    return true;
-  }
-
-  return false;
+  return await handleFeishuSlashCommand({
+    command,
+    chatState,
+    client,
+    chatId,
+    activeRuns,
+    routeKey,
+    botConfig,
+    envelope,
+    options: {
+      ...options,
+      botHome: options.botHome || DEFAULT_BOT_HOME,
+    },
+    deps: {
+      sendText,
+      renderWelcomeMessage,
+      renderHelpMessage,
+      renderUnsupportedCommandMessage,
+      renderCreditsStatus,
+      getUserCredits,
+      requestActiveRunStop,
+    },
+  });
 }
 
 async function main() {
@@ -679,27 +616,55 @@ async function main() {
 
   await writePidFile(DEFAULT_PID_PATH);
 
-  const client = new Lark.Client({
+  const { client, wsClient } = createFeishuGatewayClients({
+    Lark,
     appId: feishu.appId,
     appSecret: feishu.appSecret,
-    domain: Lark.Domain.Feishu,
-  });
-
-  const wsClient = new Lark.WSClient({
-    appId: feishu.appId,
-    appSecret: feishu.appSecret,
-    domain: Lark.Domain.Feishu,
-    loggerLevel: Lark.LoggerLevel.info,
   });
 
   const activeRuns = new Map();
   const chatQueues = new Map();
   const pendingCounts = new Map();
   const commandConfig = buildCommandConfig(config);
+  const useRunExecutor = isMigrationFeatureEnabled("runExecutor");
+  const useFeishuCards = isMigrationFeatureEnabled("feishuCards");
+  const usePendingQueue = isMigrationFeatureEnabled("pendingQueue");
+  const usePermissionBroker = isMigrationFeatureEnabled("permissionBroker");
+  const useWorkspacePolicy = isMigrationFeatureEnabled("workspacePolicy");
+  const callbackConfig = resolveFeishuCallbackConfig(feishu);
+  let permissionBroker = null;
+  const questionBroker = useRunExecutor && useFeishuCards ? new QuestionBroker() : null;
+  let callbackNonceStore = null;
+  let callbackServer = null;
+  if (usePermissionBroker && callbackConfig.enabled && callbackConfig.port != null) {
+    permissionBroker = new PermissionBroker();
+    callbackNonceStore = new PersistentCallbackNonceStore({ filePath: CALLBACK_NONCE_PATH });
+    callbackServer = await startFeishuCallbackServer({
+      Lark,
+      host: callbackConfig.host,
+      port: callbackConfig.port,
+      path: callbackConfig.path,
+      encryptKey: feishu.encryptKey || undefined,
+      verificationToken: feishu.verificationToken || undefined,
+      onAction: (event) => {
+        const result = routeFeishuCardAction(event, {
+          secret: callbackConfig.signingSecret,
+          nonceStore: callbackNonceStore,
+          permissionBroker,
+          now: Date.now(),
+        });
+        if (!result.ok) {
+          console.warn("feishu callback action rejected", result);
+        }
+        return null;
+      },
+    });
+  }
   const botIdentity = await resolveBotIdentity(client, feishu.appId, config);
 
   const shutdown = async (signal) => {
     console.log(`feishu bridge shutting down: ${signal}`);
+    await callbackServer?.close();
     await clearPidFile(DEFAULT_PID_PATH);
     process.exit(0);
   };
@@ -714,10 +679,14 @@ async function main() {
   console.log(`feishu app id: ${feishu.appId}`);
   console.log(`feishu mention required: ${String(requireExplicitMention)}`);
   console.log(`feishu mention names: ${Array.from(botIdentity.mentionNames).join(", ") || "(none)"}`);
+  if (callbackServer) {
+    console.log(`feishu callback server: http://${callbackConfig.host}:${callbackConfig.port}${callbackConfig.path}`);
+  }
 
   wsClient.start({
-    eventDispatcher: new Lark.EventDispatcher({}).register({
-      "im.message.receive_v1": (event) => {
+    eventDispatcher: createFeishuEventDispatcher({
+      Lark,
+      onMessage: (event) => {
         void (async () => {
           const messageId = event.message?.message_id;
           const chatId = event.message?.chat_id;
@@ -726,18 +695,27 @@ async function main() {
           }
 
           const routerState = await readRouterState(ROUTER_STATE_PATH);
-          if (hasProcessedMessage(routerState, messageId)) {
+          const eventDecision = classifyFeishuMessageEvent({
+            event,
+            routerState,
+            botIdentity,
+            requireExplicitMention,
+            normalizeIncomingText,
+          });
+          if (eventDecision.reason === "duplicate_message") {
             return;
           }
-          rememberProcessedMessage(routerState, messageId);
+          if (eventDecision.routerState && eventDecision.routerState !== routerState) {
+            routerState.processedMessageIds = eventDecision.routerState.processedMessageIds;
+          }
           await writeRouterState(ROUTER_STATE_PATH, routerState);
 
           await captureFeishuMetadata(botHome, event);
 
-          if (String(event.sender?.sender_type || "").toLowerCase() !== "user") {
+          if (eventDecision.action === "ignore") {
             return;
           }
-          if (event.message?.message_type !== "text") {
+          if (eventDecision.action === "unsupported_payload") {
             const response = await sendText(client, chatId, renderUnsupportedPayloadMessage(), {
               replyToMessageId: messageId,
             });
@@ -745,17 +723,12 @@ async function main() {
             return;
           }
 
-          const text = parseTextMessage(event.message?.content);
-          const normalizedText = normalizeIncomingText(text, event, botIdentity);
-          if (!normalizedText) {
+          if (eventDecision.action !== "process_text") {
             return;
           }
 
-          const explicitlyMentionedBot = hasExplicitMention(event, botIdentity);
-          if (requireExplicitMention && !explicitlyMentionedBot) {
-            return;
-          }
-
+          const normalizedText = eventDecision.text;
+          const explicitlyMentionedBot = eventDecision.explicitlyMentionedBot;
           const envelope = normalizeFeishuEnvelope(event, {
             text: normalizedText,
             explicitlyMentionedBot,
@@ -794,6 +767,28 @@ async function main() {
           await ensureSession(botHome, chatState);
           await writeRouterState(ROUTER_STATE_PATH, routerState);
 
+          const pendingQuestion = questionBroker?.findPendingQuestion({
+            channel: envelope.channel,
+            conversationId: envelope.conversationId,
+            userId: usageUserId,
+          });
+          if (pendingQuestion) {
+            const answered = questionBroker.answerQuestion({
+              runId: pendingQuestion.runId,
+              questionId: pendingQuestion.questionId,
+              userId: usageUserId,
+              answer: normalizedText,
+            });
+            const answerResponse = await sendText(
+              client,
+              chatId,
+              answered.ok ? "Reply received. CodexBridge will continue this run." : "I could not attach this reply to the pending run. Please try again.",
+              { replyToMessageId: messageId },
+            );
+            rememberBotOpenId(botIdentity, answerResponse);
+            return;
+          }
+
           const slashCommand = parseSlashCommand(normalizedText);
           if (slashCommand && await handleSlashCommand(slashCommand, chatState, client, chatId, activeRuns, routeKey, config, envelope, { replyToMessageId: messageId, botHome, user: accessUser })) {
             return;
@@ -805,7 +800,7 @@ async function main() {
           }
 
           const pendingBefore = pendingCounts.get(routeKey) || 0;
-          if (pendingBefore > 0 || activeRuns.has(routeKey)) {
+          if (!usePendingQueue && (pendingBefore > 0 || activeRuns.has(routeKey))) {
             const deniedRun = await createQueuedRun({
               userId: usageUserId,
               conversationId: envelope.conversationId,
@@ -835,6 +830,7 @@ async function main() {
             messageId,
             conversationId: envelope.conversationId,
             content: promptText,
+            deferCharge: usePendingQueue,
             botHome,
           });
           if (!preparedRequest.ok) {
@@ -883,47 +879,150 @@ async function main() {
             rememberBotOpenId(botIdentity, deniedResponse);
             return;
           }
-          const runRecord = preparedRequest.run;
-          const chargeResult = preparedRequest.charged;
-          await appendConversationLogEvent({
-            runId: runRecord.runId,
-            userId: runRecord.userId,
-            channel: envelope.channel,
-            chatType: envelope.chatType,
-            chatId,
-            messageId,
-            conversationId: envelope.conversationId,
-            direction: "input",
-            content: promptText,
-            metadata: {
-              costSource: chargeResult.costSource,
-              creditsCharged: chargeResult.charged,
-              policy: preparedRequest.policy,
-            },
-          }, botHome).catch((error) => {
-            console.error("feishu conversation input log failed", error);
-          });
-          pendingCounts.set(routeKey, 1);
+          const isQueuedBehindActive = usePendingQueue && (pendingBefore > 0 || activeRuns.has(routeKey));
+          pendingCounts.set(routeKey, pendingBefore + 1);
+          if (isQueuedBehindActive) {
+            const queuedResponse = await sendText(
+              client,
+              chatId,
+              renderQueuedMessage(chatState.sessionLabel, pendingBefore + 1),
+              { replyToMessageId: messageId },
+            );
+            rememberBotOpenId(botIdentity, queuedResponse);
+          }
 
           const previous = chatQueues.get(routeKey) ?? Promise.resolve();
           const next = previous
             .catch(() => {})
             .then(async () => {
-              await markRunRunning(runRecord.runId, {
-                costSource: chargeResult.costSource,
-                creditsCharged: chargeResult.charged,
-              }, botHome);
-              const runningResponse = await sendText(client, chatId, renderRunningMessage(chatState.sessionLabel, Boolean(chatState.cliSessionRef)), {
-                replyToMessageId: messageId,
+              const chargedRequest = usePendingQueue
+                ? await chargePreparedChatRequest(preparedRequest, { botHome })
+                : preparedRequest;
+              if (!chargedRequest.ok) {
+                await appendConversationLogEvent({
+                  runId: chargedRequest.run?.runId,
+                  userId: chargedRequest.user?.id,
+                  channel: envelope.channel,
+                  chatType: envelope.chatType,
+                  chatId,
+                  messageId,
+                  conversationId: envelope.conversationId,
+                  direction: "output",
+                  content: chargedRequest.message,
+                  metadata: {
+                    decision: chargedRequest.decision,
+                    reason: chargedRequest.reason,
+                    policy: chargedRequest.policy,
+                  },
+                }, botHome).catch((error) => {
+                  console.error("feishu conversation output log failed", error);
+                });
+                const deniedResponse = await sendText(
+                  client,
+                  chatId,
+                  chargedRequest.message,
+                  { replyToMessageId: messageId },
+                );
+                rememberBotOpenId(botIdentity, deniedResponse);
+                return;
+              }
+              const runRecord = chargedRequest.run;
+              const chargeResult = chargedRequest.charged;
+              await appendConversationLogEvent({
+                runId: runRecord.runId,
+                userId: runRecord.userId,
+                channel: envelope.channel,
+                chatType: envelope.chatType,
+                chatId,
+                messageId,
+                conversationId: envelope.conversationId,
+                direction: "input",
+                content: promptText,
+                metadata: {
+                  costSource: chargeResult.costSource,
+                  creditsCharged: chargeResult.charged,
+                  policy: chargedRequest.policy,
+                  queued: isQueuedBehindActive,
+                },
+              }, botHome).catch((error) => {
+                console.error("feishu conversation input log failed", error);
               });
-              rememberBotOpenId(botIdentity, runningResponse);
-
-              const prompt = await buildWorkspacePrompt(promptText, { botHome });
-              const started = startCliTurn(prompt, chatState.cliSessionRef, commandConfig);
-              activeRuns.set(routeKey, started.child);
-
-              const result = await started.result;
-              activeRuns.delete(routeKey);
+              const cardController = useFeishuCards
+                ? createRunCardController(client, chatId, messageId, botIdentity)
+                : null;
+              const runPermissionBroker = permissionBroker && cardController
+                ? new FeishuPermissionBroker({
+                  broker: permissionBroker,
+                  cardController,
+                  signingSecret: callbackConfig.signingSecret,
+                  sessionLabel: chatState.sessionLabel,
+                  onError: (error) => {
+                    console.error("feishu permission card failed", error);
+                  },
+                })
+                : null;
+              const runQuestionBroker = questionBroker && cardController
+                ? new FeishuQuestionBroker({
+                  broker: questionBroker,
+                  cardController,
+                  userId: usageUserId,
+                  conversationId: envelope.conversationId,
+                  sessionLabel: chatState.sessionLabel,
+                  onError: (error) => {
+                    console.error("feishu question card failed", error);
+                  },
+                })
+                : null;
+              const runCommandConfig = buildFeishuRunCommandConfig({
+                baseCommandConfig: commandConfig,
+                botHome,
+                envelope,
+                user: accessUser,
+                usageUserId,
+                config,
+                enabled: useWorkspacePolicy,
+              });
+              const result = await runPreparedFeishuCodexTurn({
+                useRunExecutor,
+                runRecord,
+                chargeResult,
+                promptText,
+                botHome,
+                chatState,
+                routeKey,
+                commandConfig: runCommandConfig,
+                activeRuns,
+                envelope,
+                chatId,
+                messageId,
+                permissionBroker: runPermissionBroker,
+                questionBroker: runQuestionBroker,
+                logEvent: ({ event, level = "info", details = {} } = {}) => {
+                  writeLogEvent(console.log, {
+                    level,
+                    event,
+                    details,
+                  });
+                },
+                onRunning: async () => {
+                  if (cardController) {
+                    await cardController.publish({
+                      state: FEISHU_CARD_STATE.RUNNING,
+                      title: "CodexBridge",
+                      sessionLabel: chatState.sessionLabel,
+                      summary: renderRunningMessage(chatState.sessionLabel, Boolean(chatState.cliSessionRef)),
+                    });
+                    return;
+                  }
+                  const runningResponse = await sendText(client, chatId, renderRunningMessage(chatState.sessionLabel, Boolean(chatState.cliSessionRef)), {
+                    replyToMessageId: messageId,
+                  });
+                  rememberBotOpenId(botIdentity, runningResponse);
+                },
+                deps: {
+                  buildWorkspacePrompt,
+                },
+              });
 
               const latestState = await readRouterState(ROUTER_STATE_PATH);
               const latestChatState = ensureConversationState(latestState, envelope);
@@ -932,45 +1031,26 @@ async function main() {
               }
               latestChatState.updatedAt = nowIso();
               await writeRouterState(ROUTER_STATE_PATH, latestState);
-
-              const cliState = await readCliState(botHome);
-              if (!cliState.sessions[latestChatState.sessionLabel]) {
-                cliState.sessions[latestChatState.sessionLabel] = {
-                  label: latestChatState.sessionLabel,
-                  cliSessionRef: latestChatState.cliSessionRef || null,
-                  createdAt: latestChatState.createdAt || nowIso(),
-                  updatedAt: nowIso(),
-                };
-              }
-              cliState.sessions[latestChatState.sessionLabel].cliSessionRef = latestChatState.cliSessionRef || null;
-              cliState.sessions[latestChatState.sessionLabel].updatedAt = nowIso();
-              await writeCliState(cliState, botHome);
+              await ensureSession(botHome, latestChatState);
 
               if (!result.ok) {
-                if (result.stopped) {
-                  await markRunStopped(runRecord.runId, "user_stop", {
-                    error: result.stderr || result.output || "Unknown error.",
-                  }, botHome);
-                } else {
-                  await markRunFailed(runRecord.runId, result.stderr || result.output || "Unknown error.", {}, botHome);
-                  await settleFailedRunBilling({
-                    userId: runRecord.userId,
-                    chargeResult,
-                    failureType: "failed",
-                    botHome,
-                    channel: envelope.channel,
-                    chatType: envelope.chatType,
-                    chatId,
-                    messageId,
-                    runId: runRecord.runId,
-                  }).catch((error) => {
-                    console.error("feishu refund failed", error);
+                if (cardController) {
+                  await cardController.publish({
+                    state: result.stopped ? FEISHU_CARD_STATE.STOPPED : FEISHU_CARD_STATE.FAILED,
+                    title: "CodexBridge",
+                    sessionLabel: chatState.sessionLabel,
+                    errorText: result.stopped ? "" : result.errorText,
+                    summary: result.stopped ? "Run stopped." : renderRequestFailedMessage(result.errorText),
+                  }, {
+                    final: true,
+                    fallbackText: renderRequestFailedMessage(result.errorText),
                   });
-                }
-                const failureResponse = await sendText(client, chatId, renderRequestFailedMessage(result.stderr || result.output || "Unknown error."), {
+                } else {
+                const failureResponse = await sendText(client, chatId, renderRequestFailedMessage(result.errorText), {
                   replyToMessageId: messageId,
                 });
                 rememberBotOpenId(botIdentity, failureResponse);
+                }
                 await appendConversationLogEvent({
                   runId: runRecord.runId,
                   userId: runRecord.userId,
@@ -980,7 +1060,7 @@ async function main() {
                   messageId,
                   conversationId: envelope.conversationId,
                   direction: "output",
-                  content: renderRequestFailedMessage(result.stderr || result.output || "Unknown error."),
+                  content: renderRequestFailedMessage(result.errorText),
                   metadata: {
                     ok: false,
                     stopped: Boolean(result.stopped),
@@ -991,15 +1071,23 @@ async function main() {
                 return;
               }
 
-              const outputText = result.output || "Done.";
-              await markRunCompleted(runRecord.runId, {
-                codexThreadId: result.cliSessionRef || latestChatState.cliSessionRef || null,
-                output: normalizeFeishuOutput(outputText),
-              }, botHome);
-              const successResponse = await sendText(client, chatId, outputText, {
-                replyToMessageId: messageId,
-              });
-              rememberBotOpenId(botIdentity, successResponse);
+              const outputText = result.outputText || "Done.";
+              if (cardController) {
+                await cardController.publish({
+                  state: FEISHU_CARD_STATE.COMPLETED,
+                  title: "CodexBridge",
+                  sessionLabel: chatState.sessionLabel,
+                  outputText,
+                }, {
+                  final: true,
+                  fallbackText: outputText,
+                });
+              } else {
+                const successResponse = await sendText(client, chatId, outputText, {
+                  replyToMessageId: messageId,
+                });
+                rememberBotOpenId(botIdentity, successResponse);
+              }
               await appendConversationLogEvent({
                 runId: runRecord.runId,
                 userId: runRecord.userId,

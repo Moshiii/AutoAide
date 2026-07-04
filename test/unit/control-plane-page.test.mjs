@@ -10,10 +10,14 @@ test("control plane page renders the control plane shell and demo prompt data", 
 
   assert.match(html, /CodexBridge Control Plane/);
   assert.match(html, /Setup Checklist/);
+  assert.match(html, /Migration Flags/);
+  assert.match(html, /migration-readiness/);
   assert.match(html, /workspaceDemoPrompts/);
   assert.match(html, /Create a 3-day Beijing weekend plan/);
   assert.match(html, /Reply with one short sentence confirming CodexBridge is ready/);
   assert.match(html, /function renderOperationsAdminResult/);
+  assert.match(html, /function renderMigrationReadiness/);
+  assert.match(html, /renderMigrationReadiness\(payload\.migrationReadiness\)/);
 });
 
 test("control plane page escapes dynamic bot rail fields before assigning innerHTML", async () => {

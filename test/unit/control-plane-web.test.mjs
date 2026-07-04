@@ -546,6 +546,31 @@ test("control plane web server enforces optional operator token", async () => {
   });
 });
 
+test("control plane web server requires operator token for non-localhost bind", async () => {
+  await withTempHome(async () => {
+    const previousToken = process.env.CODEXBRIDGE_WEB_TOKEN;
+    try {
+      delete process.env.CODEXBRIDGE_WEB_TOKEN;
+      const { startControlPlaneWebServer } = await importFresh("../../src/control-plane-web.mjs");
+
+      await assert.rejects(
+        () => startControlPlaneWebServer({ port: 0, host: "0.0.0.0" }),
+        /CODEXBRIDGE_WEB_TOKEN is required/,
+      );
+
+      process.env.CODEXBRIDGE_WEB_TOKEN = "operator-secret";
+      const runtime = await startControlPlaneWebServer({ port: 0, host: "0.0.0.0" });
+      await runtime.close();
+    } finally {
+      if (previousToken == null) {
+        delete process.env.CODEXBRIDGE_WEB_TOKEN;
+      } else {
+        process.env.CODEXBRIDGE_WEB_TOKEN = previousToken;
+      }
+    }
+  });
+});
+
 test("control plane web server returns classified safe API errors", async () => {
   await withTempHome(async () => {
     const { createBot } = await importFresh("../../src/bots.mjs");

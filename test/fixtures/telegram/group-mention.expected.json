@@ -1,0 +1,19 @@
+{
+  "mention": {
+    "offset": 0,
+    "length": 15,
+    "text": "@CodexBridgeBot",
+    "strippedText": "summarize this"
+  },
+  "envelope": {
+    "channel": "telegram",
+    "chatType": "group",
+    "chatId": "-100222",
+    "userId": "111",
+    "messageId": "1002",
+    "isDirect": false,
+    "isGroup": true,
+    "explicitlyMentionedBot": true,
+    "text": "summarize this"
+  }
+}

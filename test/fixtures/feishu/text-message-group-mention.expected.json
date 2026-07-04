@@ -1,0 +1,21 @@
+{
+  "classification": {
+    "action": "process_text",
+    "messageId": "om_group_mention_fixture",
+    "chatId": "oc_group_fixture",
+    "text": "summarize this repo",
+    "explicitlyMentionedBot": true,
+    "processedMessageIds": ["om_group_mention_fixture"]
+  },
+  "envelope": {
+    "channel": "feishu",
+    "chatType": "group",
+    "chatId": "oc_group_fixture",
+    "userId": "ou_fixture_user",
+    "messageId": "om_group_mention_fixture",
+    "isDirect": false,
+    "isGroup": true,
+    "explicitlyMentionedBot": true,
+    "text": "summarize this repo"
+  }
+}

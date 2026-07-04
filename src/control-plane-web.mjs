@@ -77,6 +77,7 @@ import {
 import { renderHtmlPage } from "./control-plane-page.mjs";
 import {
   html,
+  getWebOperatorToken,
   isWebRequestAuthorized,
   json,
   okJson,
@@ -99,19 +100,20 @@ async function getBotHome(botId) {
   return detail.bot.homePath;
 }
 
+async function withBotHome(botId, work) {
+  return await work(await getBotHome(botId));
+}
+
 async function readBotSessions(botId) {
-  const botHome = await getBotHome(botId);
-  return await readSessions(botHome);
+  return await withBotHome(botId, (botHome) => readSessions(botHome));
 }
 
 async function createBotSession(botId, label) {
-  const botHome = await getBotHome(botId);
-  return await createSession(botHome, label);
+  return await withBotHome(botId, (botHome) => createSession(botHome, label));
 }
 
 async function activateBotSession(botId, label) {
-  const botHome = await getBotHome(botId);
-  return await activateSession(botHome, label);
+  return await withBotHome(botId, (botHome) => activateSession(botHome, label));
 }
 
 async function readChatStatus(botId, sessionLabel = null) {
@@ -144,23 +146,19 @@ async function stopBotChat(botId, sessionLabel = null) {
 }
 
 async function readWorkspaceFileForBot(botId, relativePath) {
-  const botHome = await getBotHome(botId);
-  return await readWorkspaceFile(botHome, relativePath);
+  return await withBotHome(botId, (botHome) => readWorkspaceFile(botHome, relativePath));
 }
 
 async function writeWorkspaceFileForBot(botId, relativePath, content) {
-  const botHome = await getBotHome(botId);
-  return await writeWorkspaceFile(botHome, relativePath, content);
+  return await withBotHome(botId, (botHome) => writeWorkspaceFile(botHome, relativePath, content));
 }
 
 async function listBotSkills(botId) {
-  const botHome = await getBotHome(botId);
-  return await listControlPlaneSkills(botHome);
+  return await withBotHome(botId, (botHome) => listControlPlaneSkills(botHome));
 }
 
 async function installSkillForBot(botId, sourcePath) {
-  const botHome = await getBotHome(botId);
-  return await installControlPlaneSkill(botHome, sourcePath);
+  return await withBotHome(botId, (botHome) => installControlPlaneSkill(botHome, sourcePath));
 }
 
 async function pairTelegramForBot(botId, token) {
@@ -178,98 +176,82 @@ async function allowTelegramAccessForBot(botId, { accessType, id } = {}) {
 }
 
 async function listBotGoals(botId) {
-  const botHome = await getBotHome(botId);
-  return await listControlPlaneGoals(botHome);
+  return await withBotHome(botId, (botHome) => listControlPlaneGoals(botHome));
 }
 
 async function startGoalForBot(botId, { objective, sessionLabel = null } = {}) {
-  const botHome = await getBotHome(botId);
-  return await startControlPlaneGoal(botHome, botId, { objective, sessionLabel }, { activeGoalRuns });
+  return await withBotHome(
+    botId,
+    (botHome) => startControlPlaneGoal(botHome, botId, { objective, sessionLabel }, { activeGoalRuns }),
+  );
 }
 
 async function listBotSchedules(botId) {
-  const botHome = await getBotHome(botId);
-  return await listSchedulesForBotHome(botHome);
+  return await withBotHome(botId, (botHome) => listSchedulesForBotHome(botHome));
 }
 
 async function createScheduleForBot(botId, { objective, cron, timezone } = {}) {
-  const botHome = await getBotHome(botId);
-  return await createBotSchedule(botHome, botId, { objective, cron, timezone });
+  return await withBotHome(botId, (botHome) => createBotSchedule(botHome, botId, { objective, cron, timezone }));
 }
 
 async function toggleScheduleForBot(botId, scheduleId, enabled) {
-  const botHome = await getBotHome(botId);
-  return await toggleBotSchedule(botHome, scheduleId, enabled);
+  return await withBotHome(botId, (botHome) => toggleBotSchedule(botHome, scheduleId, enabled));
 }
 
 async function listBotUsers(botId) {
-  const botHome = await getBotHome(botId);
-  return await listOperationsUsers(botHome);
+  return await withBotHome(botId, (botHome) => listOperationsUsers(botHome));
 }
 
 async function grantCreditsForBot(botId, userId, amount) {
-  const botHome = await getBotHome(botId);
-  return await grantCredits(botHome, userId, amount);
+  return await withBotHome(botId, (botHome) => grantCredits(botHome, userId, amount));
 }
 
 async function adjustCreditsForBot(botId, userId, amount, reason) {
-  const botHome = await getBotHome(botId);
-  return await adjustCredits(botHome, userId, amount, reason);
+  return await withBotHome(botId, (botHome) => adjustCredits(botHome, userId, amount, reason));
 }
 
 async function updateUserStatusForBot(botId, userId, status) {
-  const botHome = await getBotHome(botId);
-  return await updateUserStatus(botHome, userId, status);
+  return await withBotHome(botId, (botHome) => updateUserStatus(botHome, userId, status));
 }
 
 async function updatePrivateEnabledForBot(botId, userId, privateEnabled) {
-  const botHome = await getBotHome(botId);
-  return await updatePrivateEnabled(botHome, userId, privateEnabled);
+  return await withBotHome(botId, (botHome) => updatePrivateEnabled(botHome, userId, privateEnabled));
 }
 
 async function listUsageForBot(botId, options = {}) {
-  const botHome = await getBotHome(botId);
-  return await listUsage(botHome, options);
+  return await withBotHome(botId, (botHome) => listUsage(botHome, options));
 }
 
 async function listRunsForBot(botId, options = {}) {
-  const botHome = await getBotHome(botId);
-  return await listRuns(botHome, options);
+  return await withBotHome(botId, (botHome) => listRuns(botHome, options));
 }
 
 async function listAdminAuditForBot(botId, options = {}) {
-  const botHome = await getBotHome(botId);
-  return await listAdminAudit(botHome, options);
+  return await withBotHome(botId, (botHome) => listAdminAudit(botHome, options));
 }
 
 async function getMetricsForBot(botId) {
-  const botHome = await getBotHome(botId);
-  return await getMetrics(botHome);
+  return await withBotHome(botId, (botHome) => getMetrics(botHome));
 }
 
 async function runMigrationsForBot(botId) {
-  const botHome = await getBotHome(botId);
-  return await runMigrations(botHome);
+  return await withBotHome(botId, (botHome) => runMigrations(botHome));
 }
 
 async function listConversationLogsForBot(botId, options = {}) {
-  const botHome = await getBotHome(botId);
-  return await listConversationLogs(botHome, options);
+  return await withBotHome(botId, (botHome) => listConversationLogs(botHome, options));
 }
 
 async function listConversationReviewsForBot(botId, options = {}) {
-  const botHome = await getBotHome(botId);
-  return await listConversationReviews(botHome, options);
+  return await withBotHome(botId, (botHome) => listConversationReviews(botHome, options));
 }
 
 async function cleanupConversationLogsForBot(botId, options = {}) {
-  const botHome = await getBotHome(botId);
-  return await cleanupConversationLogs(botHome, options);
+  return await withBotHome(botId, (botHome) => cleanupConversationLogs(botHome, options));
 }
 
 async function reviewConversationLogForBot(botId, eventId, body = {}) {
-  const botHome = await getBotHome(botId);
-  return await reviewConversationLog(botHome, eventId, body);
+  return await withBotHome(botId, (botHome) => reviewConversationLog(botHome, eventId, body));
 }
 
 export async function getControlPlaneSnapshot() {
@@ -278,6 +260,14 @@ export async function getControlPlaneSnapshot() {
 
 export async function getBotControlPlaneDetail(botId) {
   return await getBotControlPlaneDetailFromService(botId);
+}
+
+function isLoopbackHost(host) {
+  const normalized = String(host || "").trim().toLowerCase();
+  return normalized === "localhost" ||
+    normalized === "127.0.0.1" ||
+    normalized === "::1" ||
+    normalized === "[::1]";
 }
 
 async function handleApi(request, response, pathname) {
@@ -645,6 +635,9 @@ async function handleApi(request, response, pathname) {
 }
 
 export async function startControlPlaneWebServer({ port = 8787, host = "127.0.0.1" } = {}) {
+  if (!isLoopbackHost(host) && !getWebOperatorToken()) {
+    throw new Error("CODEXBRIDGE_WEB_TOKEN is required when binding the control plane web server outside localhost.");
+  }
   const server = http.createServer(async (request, response) => {
     try {
       if (!isWebRequestAuthorized(request)) {

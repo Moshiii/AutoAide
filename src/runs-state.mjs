@@ -24,6 +24,23 @@ function normalizeNumber(value) {
   return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : 0;
 }
 
+function normalizeEvents(value) {
+  return Array.isArray(value) ? value.filter((event) => event && typeof event === "object") : [];
+}
+
+function normalizePolicy(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {
+      workspacePolicyId: null,
+      runPolicyId: null,
+    };
+  }
+  return {
+    workspacePolicyId: value.workspacePolicyId || null,
+    runPolicyId: value.runPolicyId || null,
+  };
+}
+
 function normalizeRunRecord(record = {}) {
   const runId = normalizeString(record.runId) || randomUUID();
   const now = nowIso();
@@ -43,6 +60,9 @@ function normalizeRunRecord(record = {}) {
     outputPreview: normalizeString(record.outputPreview),
     error: normalizeString(record.error),
     reason: normalizeString(record.reason),
+    agentProvider: normalizeString(record.agentProvider),
+    events: normalizeEvents(record.events),
+    policy: normalizePolicy(record.policy),
     createdAt: record.createdAt || now,
     updatedAt: record.updatedAt || now,
     finishedAt: record.finishedAt || null,
@@ -96,7 +116,8 @@ export async function listRunRecords({ userId = null, limit = 100, botHome = res
     try {
       const record = JSON.parse(trimmed);
       if (record?.runId) {
-        latest.set(record.runId, record);
+        const normalized = normalizeRunRecord(record);
+        latest.set(normalized.runId, normalized);
       }
     } catch {
       // Ignore malformed snapshots.

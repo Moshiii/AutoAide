@@ -1,0 +1,22 @@
+{
+  "event": {
+    "operator": {
+      "operator_id": {
+        "open_id": "feishu:user_1"
+      }
+    },
+    "action": {
+      "value": {
+        "action": "permission.deny",
+        "runId": "run_1",
+        "actionId": "act_1",
+        "userId": "feishu:user_1",
+        "nonce": "nonce_2",
+        "signature": "fixture_signature",
+        "createdAt": "2026-06-25T07:59:00.000Z",
+        "expiresAt": "2026-06-25T08:05:00.000Z",
+        "payloadHash": "fixture_payload_hash"
+      }
+    }
+  }
+}

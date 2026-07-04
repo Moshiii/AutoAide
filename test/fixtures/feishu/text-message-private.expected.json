@@ -1,0 +1,21 @@
+{
+  "classification": {
+    "action": "process_text",
+    "messageId": "om_private_fixture",
+    "chatId": "oc_private_fixture",
+    "text": "hello codexbridge",
+    "explicitlyMentionedBot": true,
+    "processedMessageIds": ["om_private_fixture"]
+  },
+  "envelope": {
+    "channel": "feishu",
+    "chatType": "direct",
+    "chatId": "oc_private_fixture",
+    "userId": "ou_fixture_user",
+    "messageId": "om_private_fixture",
+    "isDirect": true,
+    "isGroup": false,
+    "explicitlyMentionedBot": true,
+    "text": "hello codexbridge"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "callbackAction": {
+    "action": "permission.deny",
+    "runId": "run_1",
+    "actionId": "act_1",
+    "userId": "feishu:user_1",
+    "operatorOpenId": "feishu:user_1",
+    "nonce": "nonce_2"
+  }
+}

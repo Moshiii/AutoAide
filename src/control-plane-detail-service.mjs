@@ -5,7 +5,9 @@ import { healthCheckBot, inspectBot, listBots, readBotLogs } from "./bots.mjs";
 import { hydrateTelegramMetadata } from "./telegram-metadata.mjs";
 import { getStateMigrationStatus } from "./state-migrations.mjs";
 import {
+  buildMigrationReadiness,
   buildQuickTestPreflight,
+  buildSecurityReadiness,
   buildSetupGuide,
   buildStorageReadiness,
 } from "./control-plane-readiness-service.mjs";
@@ -64,7 +66,9 @@ export async function getBotControlPlaneDetail(botId) {
     access,
     setupGuide,
     migrationStatus,
+    migrationReadiness: buildMigrationReadiness(),
     storageReadiness: buildStorageReadiness(detail.config, migrationStatus),
+    securityReadiness: buildSecurityReadiness(detail.config),
     quickTestPreflight: buildQuickTestPreflight(setupGuide),
   };
 }

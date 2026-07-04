@@ -62,3 +62,28 @@ test("run service trims long output previews", async () => {
     assert.match(latest.outputPreview, /\.\.\.$/);
   });
 });
+
+test("run service preserves additive migration fields across updates", async () => {
+  await withTempHome(async () => {
+    const runs = await importFresh("../../src/run-service.mjs");
+
+    const run = await runs.createQueuedRun({
+      userId: "telegram:1",
+      agentProvider: "codex-cli",
+      events: [{ type: "session.started" }],
+      policy: {
+        workspacePolicyId: "workspace-default",
+        runPolicyId: "run-default",
+      },
+    });
+    await runs.markRunRunning(run.runId);
+    const latest = await runs.getRunRecord(run.runId);
+
+    assert.equal(latest.agentProvider, "codex-cli");
+    assert.deepEqual(latest.events, [{ type: "session.started" }]);
+    assert.deepEqual(latest.policy, {
+      workspacePolicyId: "workspace-default",
+      runPolicyId: "run-default",
+    });
+  });
+});

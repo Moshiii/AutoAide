@@ -1,0 +1,13 @@
+{
+  "envelope": {
+    "channel": "telegram",
+    "chatType": "direct",
+    "chatId": "111",
+    "userId": "111",
+    "messageId": "1001",
+    "isDirect": true,
+    "isGroup": false,
+    "explicitlyMentionedBot": true,
+    "text": "hello codexbridge"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "sender": {
+    "sender_type": "user",
+    "sender_id": {
+      "open_id": "ou_fixture_user"
+    }
+  },
+  "message": {
+    "message_id": "om_group_mention_fixture",
+    "chat_id": "oc_group_fixture",
+    "chat_type": "group",
+    "message_type": "text",
+    "content": "{\"text\":\"@CodexBridge summarize this repo\"}",
+    "mentions": [
+      {
+        "key": "@_user_1",
+        "id": {
+          "open_id": "ou_bot_fixture"
+        },
+        "name": "CodexBridge"
+      }
+    ]
+  }
+}

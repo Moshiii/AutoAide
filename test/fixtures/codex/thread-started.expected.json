@@ -1,0 +1,14 @@
+{
+  "events": [
+    {
+      "type": "session.started",
+      "runId": "run_1",
+      "sessionKey": "feishu:user:ou_fixture_user",
+      "provider": "codex-cli",
+      "payload": {
+        "cliSessionRef": "thread_fixture_1",
+        "summary": "Session started"
+      }
+    }
+  ]
+}

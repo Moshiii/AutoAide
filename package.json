@@ -1,20 +1,63 @@
 {
   "name": "codexbridge",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.1.0-alpha.1",
+  "description": "General-purpose AI assistant runtime with a persistent file workspace.",
+  "license": "MIT",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Moshiii/CodexBridge.git"
+  },
+  "homepage": "https://github.com/Moshiii/CodexBridge#readme",
+  "keywords": [
+    "codex",
+    "ai-assistant",
+    "file-workspace",
+    "document-generation",
+    "file-editing",
+    "assistant-runtime",
+    "llm-systems"
+  ],
   "bin": {
     "codexbridge": "./bin/codexbridge.mjs"
   },
+  "files": [
+    "bin/",
+    "docs/demo-workflows.md",
+    "docs/feishu-channel-current-state.md",
+    "docs/reference/templates/",
+    "docs/telegram-codex-bridge.md",
+    "plugins/",
+    "scripts/",
+    "src/",
+    ".env.example",
+    "README.md",
+    "ROADMAP.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
+    "ci": "npm test",
     "postinstall": "node ./scripts/postinstall.mjs",
     "start": "node ./bin/codexbridge.mjs",
+    "isolation:probe": "node ./bin/isolation-probe.mjs",
+    "rollback:check": "node ./bin/rollback-readiness.mjs",
+    "state:migrate": "node ./bin/state-migrations.mjs",
     "test": "node --test --test-concurrency=1"
   },
   "engines": {
     "node": ">=22"
   },
   "dependencies": {
-    "@larksuiteoapi/node-sdk": "^1.60.0"
+    "@larksuiteoapi/node-sdk": "^1.68.0"
+  },
+  "overrides": {
+    "axios": "^1.18.1",
+    "follow-redirects": "^1.16.0",
+    "form-data": "^4.0.6",
+    "protobufjs": "^7.6.5",
+    "qs": "^6.15.3",
+    "ws": "^8.21.0"
   }
 }

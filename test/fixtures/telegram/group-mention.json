@@ -1,0 +1,22 @@
+{
+  "message_id": 1002,
+  "from": {
+    "id": 111,
+    "is_bot": false,
+    "username": "fixture_user"
+  },
+  "chat": {
+    "id": -100222,
+    "type": "supergroup",
+    "title": "Fixture Group"
+  },
+  "date": 1782360000,
+  "text": "@CodexBridgeBot summarize this",
+  "entities": [
+    {
+      "offset": 0,
+      "length": 15,
+      "type": "mention"
+    }
+  ]
+}

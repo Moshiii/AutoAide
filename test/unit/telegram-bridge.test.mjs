@@ -1,8 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { importFresh, withTempHome } from "../helpers/module.js";
+
+const TELEGRAM_FIXTURES = path.resolve("test/fixtures/telegram");
+
+async function readTelegramFixture(filename) {
+  return JSON.parse(await readFile(path.join(TELEGRAM_FIXTURES, filename), "utf8"));
+}
 
 test("renderRunningMessage stays compact", async () => {
   await withTempHome(async () => {
@@ -64,6 +71,29 @@ test("extractBotMention finds explicit group mentions", async () => {
       length: 15,
       text: "@CodexBridgeBot",
     });
+  });
+});
+
+test("Telegram fixtures preserve private and group mention contracts", async () => {
+  await withTempHome(async () => {
+    const { extractBotMention, stripExplicitBotMention } = await importFresh("../../plugins/telegram-codex/telegram-codex-bridge.mjs");
+    const privateMessage = await readTelegramFixture("private-message.json");
+    const groupMention = await readTelegramFixture("group-mention.json");
+
+    assert.equal(privateMessage.chat.type, "private");
+    assert.equal(privateMessage.from.id, privateMessage.chat.id);
+    const mention = extractBotMention(
+      groupMention.text,
+      groupMention.entities,
+      "CodexBridgeBot",
+    );
+
+    assert.deepEqual(mention, {
+      offset: 0,
+      length: 15,
+      text: "@CodexBridgeBot",
+    });
+    assert.equal(stripExplicitBotMention(groupMention.text, mention), "summarize this");
   });
 });
 
@@ -243,6 +273,7 @@ test("telegram common error prompts stay actionable", async () => {
   await withTempHome(async () => {
     const {
       renderBusyMessage,
+      renderQueuedMessage,
       renderRequestFailedMessage,
       renderUnsupportedCommandMessage,
       renderUnsupportedPayloadMessage,
@@ -252,6 +283,8 @@ test("telegram common error prompts stay actionable", async () => {
     assert.match(renderUnsupportedPayloadMessage(), /upload a file with a caption/);
     assert.match(renderUnsupportedCommandMessage("foo"), /Use \/help/);
     assert.match(renderBusyMessage("main"), /use \/stop/);
+    assert.match(renderQueuedMessage("main", 1), /position 1/);
+    assert.match(renderQueuedMessage("main", 1), /No credits have been charged yet/);
     assert.match(renderRequestFailedMessage("codex missing"), /Paid credits charged/);
     assert.match(renderRequestFailedMessage("codex missing"), /daily free quota does not spend paid credits/);
     assert.match(renderRequestFailedMessage("codex missing"), /ask the operator/);

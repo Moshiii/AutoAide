@@ -1,4 +1,5 @@
 import { listRunRecords } from "./runs-state.mjs";
+import { readMigrationFeatureFlags } from "./runtime/feature-flags.mjs";
 
 export function buildStorageReadiness(config = {}, migrationStatus = {}) {
   const provider = config.storage?.provider || "json";
@@ -22,6 +23,44 @@ export function buildStorageReadiness(config = {}, migrationStatus = {}) {
       : status === "provider_not_available"
         ? "Switch back to json or finish the SQLite repository adapter before inviting users."
         : "Storage is ready for this version.",
+  };
+}
+
+export function buildSecurityReadiness(config = {}) {
+  const isolation = config.runtime?.isolation || {};
+  const mode = String(isolation.mode || "none").trim();
+  const verified = Boolean(isolation.verified);
+  const lastProbe = isolation.lastProbe || null;
+  const probePassed = lastProbe?.status === "pass";
+  if (mode === "none") {
+    return {
+      mode,
+      verified,
+      lastProbe,
+      status: "application_only",
+      readyForExternalUsers: false,
+      next: "Application policy is active, but hard isolation is not configured. Use an independent OS user, container, microVM, macOS sandbox, or remote worker before inviting untrusted users.",
+    };
+  }
+  if (!verified || !probePassed) {
+    return {
+      mode,
+      verified,
+      lastProbe,
+      status: "verification_needed",
+      readyForExternalUsers: false,
+      next: lastProbe
+        ? "Hard isolation is configured but the latest destructive-access probe did not pass. Run npm run isolation:probe from the runtime identity before inviting untrusted users."
+        : "Hard isolation is configured but not verified. Run npm run isolation:probe from the runtime identity before inviting untrusted users.",
+    };
+  }
+  return {
+    mode,
+    verified,
+    lastProbe,
+    status: "hard_isolation_ready",
+    readyForExternalUsers: true,
+    next: "Hard isolation has a passing destructive-access probe for external-user operation.",
   };
 }
 
@@ -153,5 +192,20 @@ export function buildQuickTestPreflight(setupGuide) {
       hint: step.hint || "",
       targetTab: step.targetTab,
     })),
+  };
+}
+
+export function buildMigrationReadiness(env = process.env) {
+  const flags = readMigrationFeatureFlags(env);
+  const enabled = Object.entries(flags)
+    .filter(([, flag]) => flag.enabled)
+    .map(([key]) => key);
+  return {
+    flags,
+    enabled,
+    allDisabled: enabled.length === 0,
+    next: enabled.length === 0
+      ? "Migration features are disabled; current stable runtime paths remain active."
+      : `Migration features enabled: ${enabled.join(", ")}.`,
   };
 }

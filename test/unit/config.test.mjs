@@ -28,6 +28,14 @@ test("readConfig returns defaults when config is missing", async () => {
     const value = await config.readConfig();
 
     assert.equal(value.runtime.model, "gpt-5.4");
+    assert.equal(value.runtime.maxRunMs, 30 * 60 * 1000);
+    assert.equal(value.runtime.maxOutputBytes, 2 * 1024 * 1024);
+    assert.deepEqual(value.runtime.isolation, {
+      mode: "none",
+      verified: false,
+      notes: "",
+      lastProbe: null,
+    });
     assert.deepEqual(value.storage, {
       provider: "json",
     });
@@ -76,6 +84,13 @@ test("readConfig returns defaults when config is missing", async () => {
         allowAttachmentInput: true,
         allowCloudDocLinks: true,
       },
+      callback: {
+        enabled: false,
+        host: "127.0.0.1",
+        port: null,
+        path: "/webhook/card",
+        signingSecret: "",
+      },
       metadata: {
         chats: {},
         users: {},
@@ -95,6 +110,21 @@ test("normalizeBotConfig drops unused runtime backend, skills, and schedule stub
       },
       runtime: {
         model: "gpt-5.4-mini",
+        maxRunMs: 1234,
+        maxOutputBytes: 5678,
+        isolation: {
+          mode: "container",
+          verified: true,
+          notes: "verified with deny-write probe",
+          lastProbe: {
+            status: "pass",
+            checkedAt: "2026-06-25T00:00:00.000Z",
+            mode: "container",
+            workspaceRoot: "/tmp/workspace",
+            forbiddenPath: "/tmp/forbidden",
+            summary: "passed",
+          },
+        },
         backend: "codex",
       },
       skills: {
@@ -107,12 +137,103 @@ test("normalizeBotConfig drops unused runtime backend, skills, and schedule stub
     });
 
     assert.equal(normalized.runtime.model, "gpt-5.4-mini");
+    assert.equal(normalized.runtime.maxRunMs, 1234);
+    assert.equal(normalized.runtime.maxOutputBytes, 5678);
+    assert.deepEqual(normalized.runtime.isolation, {
+      mode: "container",
+      verified: true,
+      notes: "verified with deny-write probe",
+      lastProbe: {
+        status: "pass",
+        checkedAt: "2026-06-25T00:00:00.000Z",
+        mode: "container",
+        workspaceRoot: "/tmp/workspace",
+        forbiddenPath: "/tmp/forbidden",
+        summary: "passed",
+      },
+    });
     assert.equal(normalized.enabled, false);
     assert.equal(normalized.ownerUserId, "");
     assert.deepEqual(normalized.adminUserIds, []);
     assert.equal("backend" in normalized.runtime, false);
     assert.equal("skills" in normalized, false);
     assert.equal("schedule" in normalized, false);
+  });
+});
+
+test("normalizeBotConfig normalizes runtime process limits", async () => {
+  await withTempHome(async () => {
+    const config = await importFresh("../../src/config.mjs");
+
+    const defaults = config.normalizeBotConfig({});
+    assert.equal(defaults.runtime.maxRunMs, 30 * 60 * 1000);
+    assert.equal(defaults.runtime.maxOutputBytes, 2 * 1024 * 1024);
+
+    const normalized = config.normalizeBotConfig({
+      runtime: {
+        model: "gpt-5.4-mini",
+        maxRunMs: -1,
+        maxOutputBytes: "not-a-number",
+      },
+    });
+    assert.equal(normalized.runtime.maxRunMs, 30 * 60 * 1000);
+    assert.equal(normalized.runtime.maxOutputBytes, 2 * 1024 * 1024);
+  });
+});
+
+test("normalizeBotConfig normalizes runtime isolation readiness", async () => {
+  await withTempHome(async () => {
+    const config = await importFresh("../../src/config.mjs");
+
+    const defaults = config.normalizeBotConfig({});
+    assert.deepEqual(defaults.runtime.isolation, {
+      mode: "none",
+      verified: false,
+      notes: "",
+      lastProbe: null,
+    });
+
+    const normalized = config.normalizeBotConfig({
+      runtime: {
+        isolation: {
+          mode: "MICROVM",
+          verified: 1,
+          notes: "  firecracker worker probe passed  ",
+          lastProbe: {
+            status: "pass",
+            checkedAt: "2026-06-25T00:00:00.000Z",
+            mode: "microvm",
+            workspaceRoot: " /worker/workspace ",
+            forbiddenPath: " /host ",
+            summary: " blocked host access ",
+          },
+        },
+      },
+    });
+    assert.deepEqual(normalized.runtime.isolation, {
+      mode: "microvm",
+      verified: true,
+      notes: "firecracker worker probe passed",
+      lastProbe: {
+        status: "pass",
+        checkedAt: "2026-06-25T00:00:00.000Z",
+        mode: "microvm",
+        workspaceRoot: "/worker/workspace",
+        forbiddenPath: "/host",
+        summary: "blocked host access",
+      },
+    });
+
+    const invalid = config.normalizeBotConfig({
+      runtime: {
+        isolation: {
+          mode: "ssh",
+          verified: false,
+          notes: 123,
+        },
+      },
+    });
+    assert.deepEqual(invalid.runtime.isolation, defaults.runtime.isolation);
   });
 });
 
@@ -145,6 +266,21 @@ test("writeConfig persists config and readConfig reads it back", async () => {
     const next = {
       runtime: {
         model: "gpt-5.4-mini",
+        maxRunMs: 4321,
+        maxOutputBytes: 8765,
+        isolation: {
+          mode: "system_user",
+          verified: true,
+          notes: "dedicated os user",
+          lastProbe: {
+            status: "pass",
+            checkedAt: "2026-06-25T00:00:00.000Z",
+            mode: "system_user",
+            workspaceRoot: "/tmp/workspace",
+            forbiddenPath: "/tmp/forbidden",
+            summary: "passed",
+          },
+        },
         backend: "codex",
       },
       channels: {
@@ -168,11 +304,41 @@ test("writeConfig persists config and readConfig reads it back", async () => {
 
     const persisted = await config.readConfig();
     assert.equal(persisted.runtime.model, "gpt-5.4-mini");
+    assert.equal(persisted.runtime.maxRunMs, 4321);
+    assert.equal(persisted.runtime.maxOutputBytes, 8765);
+    assert.deepEqual(persisted.runtime.isolation, {
+      mode: "system_user",
+      verified: true,
+      notes: "dedicated os user",
+      lastProbe: {
+        status: "pass",
+        checkedAt: "2026-06-25T00:00:00.000Z",
+        mode: "system_user",
+        workspaceRoot: "/tmp/workspace",
+        forbiddenPath: "/tmp/forbidden",
+        summary: "passed",
+      },
+    });
     assert.equal(persisted.storage.provider, "json");
     assert.deepEqual(persisted.channels.telegram.private.allowedChatIds, ["1", "2"]);
     assert.deepEqual(persisted.channels.telegram.groups.allowedChatIds, ["3"]);
     const raw = JSON.parse(await readFile(path.join(tempHome, "bots", "default", "config.json"), "utf8"));
     assert.equal(raw.runtime.model, "gpt-5.4-mini");
+    assert.equal(raw.runtime.maxRunMs, 4321);
+    assert.equal(raw.runtime.maxOutputBytes, 8765);
+    assert.deepEqual(raw.runtime.isolation, {
+      mode: "system_user",
+      verified: true,
+      notes: "dedicated os user",
+      lastProbe: {
+        status: "pass",
+        checkedAt: "2026-06-25T00:00:00.000Z",
+        mode: "system_user",
+        workspaceRoot: "/tmp/workspace",
+        forbiddenPath: "/tmp/forbidden",
+        summary: "passed",
+      },
+    });
     assert.equal("model" in raw, false);
     assert.equal("backend" in raw.runtime, false);
     assert.equal("skills" in raw, false);

@@ -65,3 +65,51 @@ test("web chat service rejects a second prompt while a session is running", asyn
     }
   }
 });
+
+test("web chat service can use RunExecutor behind migration flag", async () => {
+  const previousStartCommand = process.env.CODEX_START_COMMAND;
+  const previousRunExecutor = process.env.CODEXBRIDGE_RUN_EXECUTOR;
+  try {
+    await withTempHome(async () => {
+      process.env.CODEXBRIDGE_RUN_EXECUTOR = "1";
+      process.env.CODEX_START_COMMAND = "printf '# Executor Report\\n' > executor-report.md; printf '%s\\n' '{\"type\":\"thread.started\",\"thread_id\":\"web-executor-thread\"}' '{\"type\":\"item.completed\",\"item\":{\"type\":\"agent_message\",\"text\":\"Created executor-report.md.\"}}'";
+      const { createBot, inspectBot } = await importFresh("../../src/bots.mjs");
+      const { listRunRecords } = await importFresh("../../src/run-service.mjs");
+      const { createWebChatService } = await importFresh("../../src/web-chat-service.mjs");
+      await createBot({ id: "web-executor-chat", name: "Web Executor Chat" });
+      const botHomeFor = async (botId) => (await inspectBot(botId)).bot.homePath;
+
+      const service = createWebChatService({
+        resolveBotHome: botHomeFor,
+      });
+      const started = await service.startBotChat("web-executor-chat", {
+        prompt: "Create executor-report.md",
+        sessionLabel: "main",
+      });
+      assert.equal(started.status, "running");
+
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      const status = await service.readChatStatus("web-executor-chat", "main");
+      assert.equal(status.status, "completed");
+      assert.equal(status.output, "Created executor-report.md.");
+      assert.equal(status.workspaceChanges[0].path, "executor-report.md");
+
+      const runs = await listRunRecords({ botHome: await botHomeFor("web-executor-chat") });
+      assert.equal(runs.length, 1);
+      assert.equal(runs[0].channel, "web");
+      assert.equal(runs[0].status, "completed");
+      assert.equal(runs[0].outputPreview, "Created executor-report.md.");
+    });
+  } finally {
+    if (previousStartCommand == null) {
+      delete process.env.CODEX_START_COMMAND;
+    } else {
+      process.env.CODEX_START_COMMAND = previousStartCommand;
+    }
+    if (previousRunExecutor == null) {
+      delete process.env.CODEXBRIDGE_RUN_EXECUTOR;
+    } else {
+      process.env.CODEXBRIDGE_RUN_EXECUTOR = previousRunExecutor;
+    }
+  }
+});

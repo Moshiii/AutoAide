@@ -1,14 +1,79 @@
 # CodexBridge
 
-Turn Codex into a persistent local assistant with a real runtime home.
+General-purpose AI assistant runtime with a persistent file workspace.
 
-CodexBridge gives you:
+CodexBridge wraps Codex CLI as one execution and file-editing backend for a broader assistant experience: users can ask general questions, generate files, edit documents, keep context across sessions, and operate the assistant from local or chat channels.
 
-- a runtime home at `~/.codexbridge`
-- a default bot at `~/.codexbridge/bots/default`
-- a persistent workspace at `~/.codexbridge/bots/default/workspace`
-- a Telegram-capable bot runtime you can start, stop, and inspect
-- a local CLI shell via `codexbridge`
+The goal is simple:
+
+> Give a general AI assistant a real workspace, so it can answer, create, edit, and continue work instead of only chatting.
+
+## Why This Exists
+
+Most AI assistants are good at conversation, but useful personal and work tasks often need more than a chat window:
+
+- generate files and documents
+- edit existing files
+- keep long-lived user and project context
+- preserve session history
+- run through multi-step tasks
+- expose progress and logs
+- work from local, Telegram, or Feishu channels
+- hand off work between chat and a persistent workspace
+
+CodexBridge is an experiment in that missing layer: a local-first AI assistant runtime with a durable file workspace. Codex is currently an important entry point because it can operate on files and local tools, but the product is not limited to coding-agent use cases.
+
+## What CodexBridge Gives You
+
+- A runtime home at `~/.codexbridge`
+- Bot-scoped workspaces under `~/.codexbridge/bots/<id>/workspace`
+- General-purpose AI chat through local and external channels
+- File generation and editing through the workspace
+- Named sessions with resume continuity
+- Workspace context files such as `AGENTS.md`, `IDENTITY.md`, `USER.md`, `SOUL.md`, and `TOOLS.md`
+- Bot lifecycle commands for start, stop, restart, health, logs, and config
+- Telegram bridge for remote interaction
+- Experimental Feishu bridge for IM-native workflows
+- Goal and schedule state for longer-running tasks
+- Bot-scoped skill installation
+- Local web control plane via `codexbridge web`
+
+## Mental Model
+
+CodexBridge is not a model provider and not just a coding agent wrapper.
+
+It is the assistant runtime around a persistent workspace: it manages where the assistant lives, what files it can create or edit, what it remembers, which session is active, which channel invoked it, and how a human operator inspects or restarts it.
+
+Codex CLI is currently one execution backend because it is useful for file-aware work. Over time, the durable product layer is the workspace and runtime, not any single backend.
+
+```text
+human / local shell / Telegram / Feishu / web
+        |
+        v
+CodexBridge assistant runtime
+        |
+        v
+workspace + files + sessions + memory + goals + skills
+        |
+        v
+execution and editing backends
+        |
+        v
+answers, generated files, edited documents, local actions
+```
+
+## Who It Is For
+
+CodexBridge is useful if you want to:
+
+- run a persistent general-purpose AI assistant instead of one-off chat sessions
+- ask normal questions while also letting the assistant create and edit files
+- keep assistant context in a bot-scoped workspace
+- operate the assistant from Telegram or Feishu while preserving session continuity
+- prototype file-centric AI workflows such as reports, notes, drafts, plans, and structured documents
+- study the runtime and workspace layer around practical AI assistants
+
+It is currently an early local-first developer tool. The CLI, bot runtime, Telegram bridge, goals, schedules, skills, and web console exist; operational hardening and product polish are still in progress.
 
 ## Quickstart
 
@@ -30,110 +95,104 @@ npx codexbridge
 
 - Node.js `>=22`
 - Codex CLI installed and available as `codex`
-- a local shell environment
+- A local shell environment
 
-Telegram is optional until you want to pair a bot.
+Telegram and Feishu are optional until you want external chat channels.
 
-## Getting Started
+## First Run
 
-The shortest real setup flow is:
+On first launch, CodexBridge creates the default bot and seeds its workspace.
 
-1. Install and launch:
+The default workspace lives at:
+
+```text
+~/.codexbridge/bots/default/workspace
+```
+
+CodexBridge seeds these context files:
+
+- `AGENTS.md`
+- `IDENTITY.md`
+- `USER.md`
+- `SOUL.md`
+- `TOOLS.md`
+
+These files are loaded into assistant turns as persistent workspace context.
+
+## Common Workflows
+
+### 1. Local General AI Assistant
+
+Start the shell:
 
 ```bash
-git clone https://github.com/Moshiii/CodexBridge.git
-cd CodexBridge
-npm install
-npm link
 codexbridge
 ```
 
-2. Complete first-run bootstrap inside the CLI.
-This writes your identity and preference files under:
-
-- `~/.codexbridge/bots/default/workspace/IDENTITY.md`
-- `~/.codexbridge/bots/default/workspace/USER.md`
-- `~/.codexbridge/bots/default/workspace/SOUL.md`
-
-3. Start using the local shell immediately.
-Type plain text to run a normal Codex turn.
-
-Example:
+Then type normal requests:
 
 ```text
-> summarize this repo
-> create a plan for cleaning the config model
+> explain this concept in simple terms
+> draft a travel plan for next month
+> summarize the files in this workspace
 ```
 
-4. Pair Telegram when you want the bot online remotely.
+Useful commands inside the shell:
+
+```text
+/help
+/status
+/where
+/sessions
+/new <label>
+/switch <label>
+/skills
+/channel
+/restart
+```
+
+### 2. File Generation And Editing
+
+Use the workspace when you want the assistant to produce real files rather than only chat replies:
+
+```text
+> create a project brief as a markdown file
+> turn these notes into a structured report
+> edit the draft and make it shorter
+> generate a checklist I can reuse
+```
+
+Workspace files live under:
+
+```text
+~/.codexbridge/bots/<id>/workspace
+```
+
+### 3. Remote Assistant Through Telegram
+
 Inside `codexbridge`, run:
 
 ```text
 /channel
 ```
 
-That flow will:
+The pairing flow will:
 
 - ask for your Telegram bot token
-- wait for you to send one message to the bot
-- save the Telegram config to `~/.codexbridge/bots/default/config.json`
-- start the default bot runtime
+- wait for your first message to the bot
+- save Telegram config under the active bot
+- start the bot runtime
 
-5. Check status anytime:
-
-```text
-/status
-```
-
-Or from another shell:
+After pairing, you can inspect the runtime from another shell:
 
 ```bash
 codexbridge bot health default
 codexbridge bot logs default
 ```
 
-## Daily Use
+### 4. Multiple Assistant Workspaces
 
-Use `codexbridge` for the local shell:
-
-```bash
-codexbridge
-```
-
-Useful in-shell commands:
-
-- `/help`
-- `/status`
-- `/where`
-- `/sessions`
-- `/new <label>`
-- `/switch <label>`
-- `/skills`
-- `/channel`
-- `/restart`
-
-Useful out-of-shell commands:
-
-```bash
-codexbridge bot current
-codexbridge bot create research --name Research
-codexbridge bot use research
-codexbridge bot config default
-codexbridge bot start default
-codexbridge bot stop default
-codexbridge bot restart default
-codexbridge bot health default
-codexbridge bot logs default
-codexbridge web
-```
-
-If Telegram has already been paired and the default bot is enabled, launching `codexbridge` will also bring the default bot runtime online automatically.
-
-## Bot Management
-
-CodexBridge now supports a persistent current bot selection.
-
-From the terminal:
+CodexBridge supports multiple persistent bots.
 
 ```bash
 codexbridge bots
@@ -145,7 +204,7 @@ codexbridge bot start research
 codexbridge bot stop research
 ```
 
-From inside `codexbridge`:
+Inside the interactive shell:
 
 ```text
 /bots
@@ -155,16 +214,29 @@ From inside `codexbridge`:
 /bot show research
 ```
 
-After `codexbridge bot use <id>` or `/bot use <id>`, the next `codexbridge` launch opens that bot's workspace and sessions, and auto-start checks also target that selected bot.
+After `codexbridge bot use <id>` or `/bot use <id>`, the next `codexbridge` launch opens that bot's workspace and sessions.
 
-## Current Runtime Model
+### 5. Local Web Control Plane
 
-CodexBridge now uses a bot-scoped runtime layout.
+Start the local web console:
+
+```bash
+codexbridge web
+```
+
+The web control plane currently supports bot inspection, bot lifecycle operations, session listing, local chat execution, goal and schedule views, workspace file inspection/editing, Telegram pairing, and config editing.
+
+By default the web console binds to `127.0.0.1`. If you bind it outside localhost, set `CODEXBRIDGE_WEB_TOKEN` first; CodexBridge refuses non-localhost web binds without an operator token.
+
+## Runtime Layout
+
+CodexBridge uses a bot-scoped runtime layout:
 
 ```text
 ~/.codexbridge/
   control/
     registry.json
+    active-bot.json
   logs/
   bots/
     default/
@@ -176,22 +248,18 @@ CodexBridge now uses a bot-scoped runtime layout.
       skills/
       logs/
       telegram/
+      feishu/
       workspace/
       memory/
 ```
 
 Important paths:
 
-- `~/.codexbridge/control/registry.json`
-  - control plane registry for all bots
-- `~/.codexbridge/bots/default/config.json`
-  - canonical config for the default bot
-- `~/.codexbridge/bots/default/workspace`
-  - persistent assistant workspace
-- `~/.codexbridge/bots/default/telegram`
-  - Telegram runtime state
-- `~/.codexbridge/bots/default/logs`
-  - bot runtime and bridge logs
+- `~/.codexbridge/control/registry.json` - control-plane registry for all bots
+- `~/.codexbridge/control/active-bot.json` - selected current bot
+- `~/.codexbridge/bots/<id>/config.json` - canonical bot config
+- `~/.codexbridge/bots/<id>/workspace` - persistent assistant workspace
+- `~/.codexbridge/bots/<id>/logs` - bot runtime and bridge logs
 
 ## What `npm install` Does
 
@@ -209,86 +277,29 @@ Important paths:
 
 It does not start a background daemon.
 
-## What `codexbridge` Does
-
-When you run `codexbridge`:
-
-1. CodexBridge ensures the `default` bot exists.
-2. It seeds the bot workspace if needed.
-3. It enters the local interactive CLI.
-4. You can bootstrap identity and preferences on first run.
-5. You can pair Telegram from inside the CLI with `/channel`.
-
-Telegram runtime management is bot-scoped:
-
-- `/channel` pairs Telegram and writes bot config
-- `/status` shows bot-scoped paths and runtime status
-- `/restart` restarts the default bot runtime
-
-## Bot Commands
-
-Useful commands outside the interactive shell:
-
-```bash
-codexbridge bots
-codexbridge bot show default
-codexbridge bot config default
-codexbridge bot health default
-codexbridge bot start default
-codexbridge bot stop default
-codexbridge bot restart default
-codexbridge bot logs default
-codexbridge web
-```
-
-## First Launch
-
-On first launch, CodexBridge seeds workspace files for the default bot and checks whether bootstrap is complete.
-
-The relevant workspace lives here:
-
-- `~/.codexbridge/bots/default/workspace/AGENTS.md`
-- `~/.codexbridge/bots/default/workspace/IDENTITY.md`
-- `~/.codexbridge/bots/default/workspace/USER.md`
-- `~/.codexbridge/bots/default/workspace/SOUL.md`
-- `~/.codexbridge/bots/default/workspace/TOOLS.md`
-
-Bootstrap completion is tracked separately in:
-
-- `~/.codexbridge/bots/default/bootstrap-state.json`
-
 ## Channels
+
+### Telegram
 
 Telegram is currently the most complete external channel.
 
-Feishu is now available as an experimental channel using the official Node SDK in long connection mode.
+When configured, CodexBridge runs the Telegram bridge under the selected bot runtime instead of a global daemon.
 
-Feishu setup is not just pasting `appId` and `appSecret`. The Feishu app also needs:
+### Feishu
 
-- bot capability enabled in the app settings
-- IM message permissions enabled for message receive/send
+Feishu is available as an experimental channel using the official Node SDK in long-connection mode.
+
+Feishu setup requires:
+
+- bot capability enabled in the Feishu app settings
+- IM message permissions enabled for receive/send
 - `im.message.receive_v1` added in Event Subscriptions
-- the app installed or published into the tenant where you want to use it
-
-This bridge uses long connection mode, so no public webhook URL is required.
-
-Inside the CLI:
-
-- `Enter` opens a quick action menu
-- `/bots` opens an interactive bot picker with arrow-key navigation
-- `/new` creates a bot with guided prompts
-- `/connect` configures Telegram or Feishu
-- `/me` shows a compact current-bot summary
-- `/status full` shows detailed runtime paths and channel state
-- `/where` shows the current CLI session
-- `/skills` lists or installs bot-scoped skills
-
-When a channel is configured, CodexBridge runs the channel bridge under the bot runtime instead of a global daemon.
+- the app installed or published into the target tenant
 
 Current Feishu scope:
 
 - receives plain text messages through `im.message.receive_v1`
-- runs a normal Codex turn per chat
+- runs a normal assistant turn per chat
 - sends plain text replies back to the chat
 - keeps per-chat session continuity
 
@@ -301,46 +312,103 @@ Not yet mirrored from Telegram:
 
 ## Architecture
 
-The current shape is:
-
 ```text
 repo/
-  software install and source
+  bin/codexbridge.mjs
+  scripts/postinstall.mjs
+  src/
+  plugins/
+  docs/
 
 ~/.codexbridge/
-  control plane state
-  shared logs
+  control/
+  logs/
   bots/
-    default/
-      bot config
-      bot runtime state
+    <id>/
+      config
+      sessions
+      goals
+      schedules
+      skills
+      channel state
       workspace
+      memory
 
 Codex CLI
-  execution engine
+  execution and editing backend for file-aware assistant turns
 ```
 
 Key files:
 
-- [bin/codexbridge.mjs](/Users/moshiwei/Documents/GitHub/CodexBridge/bin/codexbridge.mjs)
-  - CLI entrypoint
-- [src/bots.mjs](/Users/moshiwei/Documents/GitHub/CodexBridge/src/bots.mjs)
-  - bot lifecycle and runtime management
-- [src/config.mjs](/Users/moshiwei/Documents/GitHub/CodexBridge/src/config.mjs)
-  - bot-scoped paths and config I/O
-- [src/cli.mjs](/Users/moshiwei/Documents/GitHub/CodexBridge/src/cli.mjs)
-  - interactive shell
-- [src/control-plane-web.mjs](/Users/moshiwei/Documents/GitHub/CodexBridge/src/control-plane-web.mjs)
-  - minimal bot control plane UI
-- [src/workspace-bootstrap.mjs](/Users/moshiwei/Documents/GitHub/CodexBridge/src/workspace-bootstrap.mjs)
-  - first-run bootstrap and workspace seeding
-- [src/workspace-context.mjs](/Users/moshiwei/Documents/GitHub/CodexBridge/src/workspace-context.mjs)
-  - workspace context loading
-- [plugins/telegram-codex/telegram-codex-bridge.mjs](/Users/moshiwei/Documents/GitHub/CodexBridge/plugins/telegram-codex/telegram-codex-bridge.mjs)
-  - Telegram bridge runtime
+- [bin/codexbridge.mjs](bin/codexbridge.mjs) - CLI entrypoint
+- [src/bots.mjs](src/bots.mjs) - bot lifecycle and runtime management
+- [src/config.mjs](src/config.mjs) - bot-scoped paths and config I/O
+- [src/cli.mjs](src/cli.mjs) - interactive shell
+- [src/control-plane-web.mjs](src/control-plane-web.mjs) - local web control plane
+- [src/workspace-bootstrap.mjs](src/workspace-bootstrap.mjs) - first-run bootstrap and workspace seeding
+- [src/workspace-context.mjs](src/workspace-context.mjs) - workspace context loading
+- [plugins/telegram-codex/telegram-codex-bridge.mjs](plugins/telegram-codex/telegram-codex-bridge.mjs) - Telegram bridge runtime
+- [plugins/feishu-codex/feishu-codex-bridge.mjs](plugins/feishu-codex/feishu-codex-bridge.mjs) - Feishu bridge runtime
 
-## Notes
+## Documentation
 
-- The old single-daemon model has been removed.
-- The canonical config is now bot-scoped.
-- CodexBridge only reads bot-scoped state under `~/.codexbridge/bots/<id>`.
+- [Current architecture](docs/current-architecture.md)
+- [Capability overview](docs/codexbridge-capability-overview.md)
+- [Demo workflows](docs/demo-workflows.md)
+- [Roadmap](ROADMAP.md)
+- [Business plan](docs/business-plan.md)
+- [Test plan](docs/test-plan.md)
+- [Telegram bridge](docs/telegram-codex-bridge.md)
+- [Feishu channel current state](docs/feishu-channel-current-state.md)
+
+## Development
+
+Run tests:
+
+```bash
+npm test
+```
+
+Run the same checks used by CI:
+
+```bash
+npm run ci
+```
+
+Start the CLI from source:
+
+```bash
+npm start
+```
+
+Useful local checks:
+
+```bash
+npm run state:migrate -- status
+npm run state:migrate -- run
+npm run isolation:probe -- --mode container
+```
+
+Migration feature flags default to off. Use them only for local development or canary bots, then turn them back off to roll back:
+
+- `CODEXBRIDGE_RUN_EXECUTOR`
+- `CODEXBRIDGE_FEISHU_GATEWAY`
+- `CODEXBRIDGE_FEISHU_CARDS`
+- `CODEXBRIDGE_FEISHU_MESSAGE_FLOW`
+- `CODEXBRIDGE_TELEGRAM_MESSAGE_FLOW`
+- `CODEXBRIDGE_PENDING_QUEUE`
+- `CODEXBRIDGE_PERMISSION_BROKER`
+- `CODEXBRIDGE_WORKSPACE_POLICY`
+
+Before letting external users run Codex through your host, verify hard isolation with `npm run isolation:probe -- --mode <system_user|container|microvm|macos_sandbox|remote_worker>` from the runtime identity. Application-level policy is not a host sandbox.
+
+## Non-Goals
+
+CodexBridge is not trying to be:
+
+- a generic model API gateway
+- a token resale business
+- only a coding-agent wrapper
+- a cloud SaaS control plane before the local-first runtime is solid
+
+The durable layer is the AI assistant workspace: general chat, file generation, file editing, session continuity, memory, channel routing, execution visibility, skills, and operator control.

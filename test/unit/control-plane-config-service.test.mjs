@@ -18,6 +18,9 @@ function baseConfig() {
         appSecret: "secret-a",
         verificationToken: "verify-a",
         encryptKey: "encrypt-a",
+        callback: {
+          signingSecret: "callback-secret-a",
+        },
       },
     },
   };
@@ -31,6 +34,7 @@ test("control plane config service redacts channel secrets", async () => {
   assert.equal(redacted.channels.feishu.appSecret, "[redacted]");
   assert.equal(redacted.channels.feishu.verificationToken, "[redacted]");
   assert.equal(redacted.channels.feishu.encryptKey, "[redacted]");
+  assert.equal(redacted.channels.feishu.callback.signingSecret, "[redacted]");
   assert.equal(redacted.channels.telegram.botUsername, "demo_bot");
 });
 
@@ -48,6 +52,9 @@ test("control plane config service preserves existing secrets when patch contain
         appSecret: "[redacted]",
         verificationToken: "[redacted]",
         encryptKey: "[redacted]",
+        callback: {
+          signingSecret: "[redacted]",
+        },
       },
     },
   });
@@ -57,6 +64,7 @@ test("control plane config service preserves existing secrets when patch contain
   assert.equal(next.channels.feishu.appSecret, "secret-a");
   assert.equal(next.channels.feishu.verificationToken, "verify-a");
   assert.equal(next.channels.feishu.encryptKey, "encrypt-a");
+  assert.equal(next.channels.feishu.callback.signingSecret, "callback-secret-a");
 });
 
 test("control plane config service rejects placeholder Telegram tokens", async () => {

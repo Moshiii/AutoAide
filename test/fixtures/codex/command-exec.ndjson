@@ -1,0 +1,2 @@
+{"type":"item.started","item":{"id":"cmd_1","type":"command_execution","command":"npm test -- --runInBand"}}
+{"type":"item.completed","item":{"id":"cmd_1","type":"command_execution","command":"npm test -- --runInBand"}}

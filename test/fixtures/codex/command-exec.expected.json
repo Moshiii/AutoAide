@@ -1,0 +1,22 @@
+{
+  "events": [
+    {
+      "id": "cmd_1",
+      "type": "command.started",
+      "provider": "codex-cli",
+      "payload": {
+        "command": "npm test -- --runInBand",
+        "summary": "Running npm test -- --runInBand..."
+      }
+    },
+    {
+      "id": "cmd_1",
+      "type": "command.completed",
+      "provider": "codex-cli",
+      "payload": {
+        "command": "npm test -- --runInBand",
+        "summary": "Finished npm test -- --runInBand."
+      }
+    }
+  ]
+}
