@@ -162,7 +162,9 @@ async function installSkillForBot(botId, sourcePath) {
 }
 
 async function pairTelegramForBot(botId, token) {
-  return await pairTelegramForControlPlane(botId, token, {
+  const explicitToken = String(token || "").trim();
+  const existingToken = explicitToken ? "" : (await inspectBot(botId)).config.channels?.telegram?.botToken;
+  return await pairTelegramForControlPlane(botId, explicitToken || existingToken, {
     updateBotConfigFn: updateBotConfig,
     getDetailFn: getBotControlPlaneDetail,
   });

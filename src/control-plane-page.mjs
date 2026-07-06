@@ -11,71 +11,77 @@ export function renderHtmlPage({ homePath = process.env.HOME || "" } = {}) {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>CodexBridge Control Plane</title>
     <style>
+      /* Modern operations-console redesign. Keep existing DOM hooks intact. */
       :root {
-        --bg-0: #09100e;
-        --bg-1: #0d1512;
-        --bg-2: #111a17;
-        --panel-0: rgba(18, 29, 25, 0.92);
-        --panel-1: rgba(22, 35, 31, 0.94);
-        --panel-2: rgba(26, 41, 36, 0.96);
-        --line-0: #20332d;
-        --line-1: #2a433b;
-        --text-0: #e4f2ec;
-        --text-1: #b8cbc3;
-        --text-2: #7e958d;
-        --accent-0: #37f3c8;
-        --accent-1: #7cff5b;
-        --warn-0: #f6b73c;
-        --danger-0: #e85d4f;
-        --shadow-soft: 0 18px 48px rgba(0, 0, 0, 0.35);
-        --glow-accent: 0 0 18px rgba(55, 243, 200, 0.14);
+        --bg-0: #f4f6f9;
+        --bg-1: #eef2f6;
+        --bg-2: #e8edf3;
+        --panel-0: #ffffff;
+        --panel-1: #f8fafc;
+        --panel-2: #f1f5f9;
+        --line-0: #d7dee8;
+        --line-1: #c6d0dd;
+        --text-0: #182230;
+        --text-1: #4b5565;
+        --text-2: #697586;
+        --accent-0: #2563eb;
+        --accent-1: #0f766e;
+        --warn-0: #b45309;
+        --danger-0: #b42318;
+        --shadow-soft: 0 1px 2px rgba(16, 24, 40, 0.06), 0 10px 28px rgba(16, 24, 40, 0.04);
       }
-      * { box-sizing: border-box; }
-      html { color-scheme: dark; }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        color-scheme: light;
+        background: var(--bg-0);
+        overflow-x: hidden;
+      }
       body {
         margin: 0;
-        color: var(--text-0);
-        font-family: "IBM Plex Sans Condensed", "Rajdhani", "Segoe UI", sans-serif;
-        background:
-          radial-gradient(circle at top left, rgba(55, 243, 200, 0.06), transparent 26%),
-          radial-gradient(circle at top right, rgba(124, 255, 91, 0.05), transparent 24%),
-          linear-gradient(180deg, var(--bg-0), var(--bg-1) 34%, var(--bg-2));
         min-height: 100vh;
-        position: relative;
+        color: var(--text-0);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif;
+        background: var(--bg-0);
+        line-height: 1.45;
+        overflow-x: hidden;
       }
-      body::before {
-        content: "";
-        position: fixed;
-        inset: 0;
-        pointer-events: none;
-        background:
-          linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
-        background-size: 100% 28px, 28px 100%;
-        opacity: 0.18;
-      }
+      body::before,
       body::after {
-        content: "";
-        position: fixed;
-        inset: 0;
-        pointer-events: none;
-        background: linear-gradient(180deg, rgba(255,255,255,0.035), transparent 12%, transparent 88%, rgba(255,255,255,0.03));
-        mix-blend-mode: soft-light;
-        opacity: 0.3;
+        display: none;
       }
       main {
         max-width: 1680px;
         margin: 0 auto;
-        padding: 18px 18px 26px;
-        position: relative;
-        z-index: 1;
+        padding: 16px 16px 28px;
       }
-      h1, h2, h3 { margin: 0; }
-      h1, h2, h3, .metric-value, .tab {
-        font-family: "Rajdhani", "IBM Plex Sans Condensed", sans-serif;
-        letter-spacing: 0.03em;
+      h1,
+      h2,
+      h3,
+      .metric-value,
+      .tab {
+        font-family: inherit;
+        letter-spacing: 0;
       }
-      .subtle { color: var(--text-2); }
+      h1,
+      h2,
+      h3 {
+        color: var(--text-0);
+        font-weight: 650;
+      }
+      h1 {
+        font-size: clamp(24px, 2vw, 30px);
+      }
+      h2 {
+        font-size: 18px;
+      }
+      h3 {
+        font-size: 15px;
+      }
+      .subtle {
+        color: var(--text-2);
+      }
       .panel,
       .card,
       .metric,
@@ -85,247 +91,321 @@ export function renderHtmlPage({ homePath = process.env.HOME || "" } = {}) {
       input,
       select,
       .modal {
-        backdrop-filter: blur(10px);
+        backdrop-filter: none;
       }
-      .panel {
-        background: linear-gradient(180deg, rgba(25, 38, 34, 0.92), rgba(16, 26, 22, 0.94));
-        border: 1px solid var(--line-0);
-        border-radius: 18px;
-        padding: 16px;
-        box-shadow: var(--shadow-soft);
-        position: relative;
-        overflow: hidden;
+      .panel,
+      .card,
+      .metric,
+      .list-item,
+      .bot-row,
+      .muted-box,
+      .modal {
+        border-radius: 8px;
       }
       .panel::before,
       .card::before,
       .metric::before,
       .list-item::before,
       .modal::before {
-        content: "";
-        position: absolute;
-        inset: 0;
-        border-radius: inherit;
-        pointer-events: none;
-        border: 1px solid rgba(255,255,255,0.03);
+        display: none;
+      }
+      .panel {
+        background: var(--panel-0);
+        border: 1px solid var(--line-0);
+        box-shadow: var(--shadow-soft);
+        overflow: visible;
+        padding: 14px;
       }
       .topbar {
         display: grid;
-        grid-template-columns: 1.1fr auto;
-        gap: 16px;
-        align-items: start;
-        min-height: 110px;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 18px;
+        min-height: 0;
+        padding: 16px 18px;
       }
       .headline {
         display: flex;
         flex-direction: column;
-        gap: 10px;
+        gap: 5px;
       }
-      .eyebrow {
-        color: var(--accent-0);
-        text-transform: uppercase;
+      .eyebrow,
+      .section-kicker,
+      .metric-label,
+      .divider-title,
+      .kv div:nth-child(odd) {
+        color: var(--text-2);
         font-size: 12px;
-        letter-spacing: 0.18em;
+        font-weight: 600;
+        letter-spacing: 0;
+        text-transform: none;
       }
       .headline h1 {
-        font-size: 36px;
-        line-height: 0.95;
+        font-size: clamp(24px, 2vw, 30px);
+        line-height: 1.15;
+      }
+      .headline .subtle {
+        margin: 0;
+        max-width: 760px;
       }
       .status-strip {
         display: flex;
         flex-wrap: wrap;
-        gap: 8px;
+        gap: 7px;
         justify-content: flex-end;
       }
       .pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 6px 11px;
-        border-radius: 999px;
-        border: 1px solid var(--line-1);
-        font-size: 12px;
+        min-height: 28px;
+        padding: 5px 10px;
+        border: 1px solid var(--line-0);
+        background: #ffffff;
         color: var(--text-1);
-        background: rgba(7, 14, 12, 0.75);
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0;
+        text-transform: none;
+        box-shadow: none;
       }
       .pill::before {
-        content: "";
         width: 7px;
         height: 7px;
-        border-radius: 999px;
-        background: var(--text-2);
-        box-shadow: 0 0 8px rgba(255,255,255,0.08);
+        background: #98a2b3;
+        box-shadow: none;
       }
       .pill.accent {
-        color: var(--accent-0);
-        border-color: rgba(55, 243, 200, 0.38);
-        box-shadow: inset 0 0 0 1px rgba(55, 243, 200, 0.08), var(--glow-accent);
+        color: #166534;
+        border-color: #bbf7d0;
+        background: #f0fdf4;
+        box-shadow: none;
       }
       .pill.accent::before {
-        background: var(--accent-0);
-        box-shadow: 0 0 10px rgba(55, 243, 200, 0.5);
+        background: #16a34a;
+        box-shadow: none;
       }
       .pill.danger {
         color: var(--danger-0);
-        border-color: rgba(232, 93, 79, 0.38);
+        border-color: #fecaca;
+        background: #fff1f2;
       }
       .pill.danger::before {
         background: var(--danger-0);
-        box-shadow: 0 0 10px rgba(232, 93, 79, 0.38);
+        box-shadow: none;
       }
       button {
         appearance: none;
+        min-height: 36px;
         border: 1px solid var(--line-1);
-        background: linear-gradient(180deg, rgba(17, 28, 24, 0.94), rgba(10, 17, 15, 0.96));
+        border-radius: 6px;
+        background: #ffffff;
         color: var(--text-0);
-        border-radius: 12px;
-        padding: 10px 14px;
+        padding: 7px 12px;
         cursor: pointer;
         font: inherit;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        transition: border-color 140ms ease, transform 140ms ease, box-shadow 140ms ease, color 140ms ease;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0;
+        text-transform: none;
+        box-shadow: none;
+        transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
       }
       button:hover {
-        border-color: rgba(55, 243, 200, 0.35);
-        box-shadow: var(--glow-accent);
-        transform: translateY(-1px);
+        border-color: #98a2b3;
+        background: #f8fafc;
+        box-shadow: none;
+        transform: none;
       }
       button.primary {
-        color: #03110d;
-        border-color: rgba(55, 243, 200, 0.62);
-        background: linear-gradient(180deg, var(--accent-0), #1fcba5);
-        box-shadow: 0 0 16px rgba(55, 243, 200, 0.22);
+        background: var(--accent-0);
+        border-color: var(--accent-0);
+        color: #ffffff;
+        box-shadow: none;
+      }
+      button.primary:hover {
+        background: #1d4ed8;
+        border-color: #1d4ed8;
       }
       button.danger {
         color: var(--danger-0);
       }
+      button.danger:hover {
+        border-color: #fca5a5;
+        background: #fff1f2;
+      }
       button.ghost {
         background: transparent;
       }
-      pre {
-        background: linear-gradient(180deg, rgba(9, 15, 13, 0.96), rgba(12, 19, 16, 0.98));
-        border: 1px solid var(--line-0);
-        border-radius: 14px;
-        padding: 13px 14px;
-        overflow: auto;
-        white-space: pre-wrap;
+      label {
+        display: grid;
+        gap: 6px;
         color: var(--text-1);
-        font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
-        font-size: 12px;
-        line-height: 1.55;
+        font-size: 13px;
+        font-weight: 600;
       }
-      textarea, input, select {
-        width: 100%;
+      textarea,
+      input,
+      select {
+        min-height: 36px;
         border: 1px solid var(--line-0);
-        border-radius: 12px;
-        padding: 10px 12px;
-        background: linear-gradient(180deg, rgba(11, 18, 16, 0.96), rgba(14, 23, 20, 0.96));
+        border-radius: 6px;
+        background: #ffffff;
         color: var(--text-0);
+        padding: 8px 10px;
         font: inherit;
+        font-size: 13px;
+        outline: none;
+      }
+      textarea:focus,
+      input:focus,
+      select:focus {
+        border-color: var(--accent-0);
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
       }
       textarea {
-        min-height: 220px;
+        min-height: 180px;
         resize: vertical;
-        font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
         line-height: 1.5;
       }
       input::placeholder,
       textarea::placeholder {
-        color: #5f776f;
+        color: #98a2b3;
+      }
+      pre {
+        margin: 10px 0 0;
+        border: 1px solid #1f2937;
+        border-radius: 8px;
+        background: #101828;
+        color: #d0d5dd;
+        padding: 12px;
+        overflow: auto;
+        white-space: pre-wrap;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+        font-size: 12px;
+        line-height: 1.55;
       }
       .app-shell {
         display: grid;
-        grid-template-columns: 300px minmax(0, 1fr) 340px;
-        gap: 16px;
-        margin-top: 16px;
+        grid-template-columns: 282px minmax(0, 1fr) 324px;
+        gap: 14px;
+        margin-top: 14px;
         align-items: start;
+        min-width: 0;
       }
       .fleet-rail,
       .main-panel,
-      .side-panel {
+      .side-panel,
+      .inspector-stack {
         display: flex;
         flex-direction: column;
-        gap: 14px;
+        gap: 12px;
+        min-width: 0;
       }
       .fleet-list,
       .list {
         display: flex;
         flex-direction: column;
-        gap: 10px;
+        gap: 8px;
+      }
+      .bot-row,
+      .list-item,
+      .card,
+      .metric {
+        background: var(--panel-0);
+        border: 1px solid var(--line-0);
+        box-shadow: none;
+        min-width: 0;
+        position: relative;
       }
       .bot-row,
       .list-item {
-        border: 1px solid var(--line-0);
-        border-radius: 14px;
-        padding: 12px;
-        background: linear-gradient(180deg, rgba(15, 24, 21, 0.98), rgba(10, 16, 14, 0.98));
-        position: relative;
+        padding: 10px;
+      }
+      .bot-row:hover,
+      .list-item:hover {
+        border-color: var(--line-1);
       }
       .bot-row {
         cursor: pointer;
       }
       .bot-row.current {
-        border-color: rgba(55, 243, 200, 0.5);
-        box-shadow: inset 0 0 0 1px rgba(55, 243, 200, 0.14), var(--glow-accent);
+        border-color: var(--accent-0);
+        box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.14);
       }
       .muted-box {
-        border: 1px dashed var(--line-1);
-        border-radius: 14px;
-        padding: 13px;
+        border: 1px solid var(--line-0);
+        background: var(--panel-1);
         color: var(--text-2);
-        background: rgba(7, 14, 12, 0.52);
-        line-height: 1.55;
+        line-height: 1.5;
+        padding: 11px;
       }
       .section-title {
         display: flex;
         justify-content: space-between;
-        align-items: center;
         gap: 12px;
-        margin-bottom: 12px;
+        align-items: center;
+        margin-bottom: 10px;
+      }
+      .section-title > div {
+        min-width: 0;
+      }
+      .section-title h2,
+      .section-title h3 {
+        overflow-wrap: anywhere;
       }
       .section-kicker {
-        color: var(--accent-0);
-        font-size: 11px;
-        letter-spacing: 0.16em;
-        text-transform: uppercase;
-        margin-bottom: 6px;
+        margin-bottom: 4px;
       }
       .bot-hero {
         display: grid;
-        grid-template-columns: 1fr auto;
-        gap: 18px;
-        align-items: start;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        padding: 14px;
       }
       .hero-actions {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        display: flex;
+        flex-wrap: wrap;
         gap: 8px;
-        min-width: 260px;
+        justify-content: flex-end;
+        min-width: 0;
+        max-width: 420px;
       }
       .mode-panel {
-        padding: 12px;
+        padding: 8px;
+      }
+      .mode-panel .section-kicker {
+        padding: 0 4px 6px;
       }
       .tabs {
         display: flex;
         flex-wrap: wrap;
-        gap: 8px;
+        gap: 4px;
+        max-width: 100%;
+        min-width: 0;
+        overflow-x: hidden;
+        padding-bottom: 1px;
       }
       .tab {
-        padding: 8px 12px;
-        border-radius: 10px;
-        border: 1px solid var(--line-0);
-        background: rgba(11, 18, 16, 0.9);
-        cursor: pointer;
+        flex: 0 0 auto;
+        min-height: 32px;
+        white-space: nowrap;
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
         color: var(--text-1);
-        text-transform: uppercase;
+        cursor: pointer;
         font-size: 13px;
+        font-weight: 600;
+        padding: 7px 10px;
+      }
+      .tab:hover {
+        background: var(--panel-1);
+        border-color: transparent;
       }
       .tab.active {
         color: var(--accent-0);
-        border-color: rgba(55, 243, 200, 0.45);
-        box-shadow: inset 0 0 0 1px rgba(55, 243, 200, 0.11), var(--glow-accent);
+        border-color: transparent;
+        background: #eff6ff;
+        box-shadow: none;
       }
       .tab-panel {
         display: none;
@@ -333,29 +413,31 @@ export function renderHtmlPage({ homePath = process.env.HOME || "" } = {}) {
       .tab-panel.active {
         display: block;
       }
+      .tab-panel.panel {
+        background: transparent;
+        border: 0;
+        box-shadow: none;
+        padding: 0;
+      }
+      .tab-panel > .section-title {
+        padding: 4px 0 0;
+      }
       .overview-metrics {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 12px;
-        margin-bottom: 14px;
+        gap: 10px;
+        margin-bottom: 12px;
       }
       .metric {
-        border: 1px solid var(--line-0);
-        border-radius: 14px;
-        padding: 14px;
-        background: linear-gradient(180deg, rgba(15, 24, 21, 0.96), rgba(10, 16, 14, 0.98));
-        position: relative;
-      }
-      .metric-label {
-        font-size: 11px;
-        color: var(--text-2);
-        text-transform: uppercase;
-        letter-spacing: 0.16em;
+        padding: 12px;
       }
       .metric-value {
-        margin-top: 10px;
-        font-size: 26px;
-        line-height: 1;
+        margin-top: 8px;
+        color: var(--text-0);
+        font-size: 22px;
+        font-weight: 650;
+        line-height: 1.1;
+        overflow-wrap: anywhere;
       }
       .card-grid,
       .two-col,
@@ -364,83 +446,80 @@ export function renderHtmlPage({ homePath = process.env.HOME || "" } = {}) {
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 12px;
       }
-      .chat-shell {
-        grid-template-columns: 280px 1fr;
-      }
       .card {
-        border: 1px solid var(--line-0);
-        border-radius: 14px;
         padding: 14px;
-        background: linear-gradient(180deg, rgba(15, 24, 21, 0.98), rgba(10, 16, 14, 0.98));
-        min-width: 0;
-        position: relative;
+      }
+      .card h3 + .list,
+      .card h3 + .kv,
+      .card h3 + label,
+      .card h3 + .modal-grid {
+        margin-top: 10px;
+      }
+      .chat-shell {
+        grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
       }
       .kv {
         display: grid;
-        grid-template-columns: 132px 1fr;
-        gap: 8px 12px;
+        grid-template-columns: minmax(110px, 0.38fr) minmax(0, 1fr);
+        gap: 7px 12px;
         margin-top: 10px;
-        min-width: 0;
       }
-      .kv div:nth-child(odd) {
-        color: var(--text-2);
-        text-transform: uppercase;
-        font-size: 11px;
-        letter-spacing: 0.12em;
-      }
-      .kv div:nth-child(even) {
+      .kv > div {
         min-width: 0;
         overflow-wrap: anywhere;
         word-break: break-word;
       }
-      .toolbar {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-top: 12px;
+      .kv div:nth-child(even) {
+        color: var(--text-0);
       }
+      .toolbar,
       .badge-row {
         display: flex;
         flex-wrap: wrap;
         gap: 8px;
-        margin-top: 10px;
       }
-      .inspector-stack {
-        display: flex;
-        flex-direction: column;
-        gap: 14px;
+      .toolbar input {
+        width: min(260px, 100%);
+      }
+      .modal-grid {
+        display: grid;
+        gap: 10px;
+      }
+      .divider-title {
+        margin-bottom: 8px;
       }
       .compact-card h3 {
         margin-bottom: 10px;
       }
       .diagnostics {
-        margin-top: 16px;
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 16px;
+        gap: 14px;
+        margin-top: 14px;
+        min-width: 0;
       }
       .log-panel pre {
-        min-height: 260px;
+        min-height: 220px;
         margin: 0;
       }
       .toast {
         position: fixed;
-        right: 18px;
-        bottom: 18px;
-        background: rgba(7, 15, 13, 0.96);
+        right: 16px;
+        bottom: 16px;
+        max-width: 380px;
+        border: 1px solid var(--line-0);
+        border-radius: 8px;
+        background: #ffffff;
         color: var(--text-0);
-        border: 1px solid rgba(55, 243, 200, 0.35);
-        box-shadow: var(--glow-accent), var(--shadow-soft);
+        box-shadow: 0 14px 36px rgba(16, 24, 40, 0.14);
         padding: 12px 14px;
-        border-radius: 14px;
-        max-width: 360px;
         display: none;
         z-index: 20;
       }
       .modal-backdrop {
         position: fixed;
         inset: 0;
-        background: rgba(2, 7, 6, 0.72);
+        background: rgba(15, 23, 42, 0.42);
         display: none;
         align-items: center;
         justify-content: center;
@@ -449,37 +528,26 @@ export function renderHtmlPage({ homePath = process.env.HOME || "" } = {}) {
       }
       .modal {
         width: min(560px, 100%);
-        background: linear-gradient(180deg, rgba(18, 29, 25, 0.98), rgba(11, 18, 16, 0.98));
+        background: #ffffff;
         border: 1px solid var(--line-0);
-        border-radius: 18px;
+        box-shadow: 0 24px 60px rgba(16, 24, 40, 0.18);
         padding: 18px;
-        box-shadow: var(--shadow-soft);
-        position: relative;
-      }
-      .modal-grid {
-        display: grid;
-        gap: 12px;
-        margin-top: 12px;
-      }
-      .divider-title {
-        font-size: 11px;
-        text-transform: uppercase;
-        letter-spacing: 0.16em;
-        color: var(--accent-0);
-        margin-bottom: 10px;
       }
       @media (max-width: 1320px) {
         .app-shell {
-          grid-template-columns: 280px 1fr;
+          grid-template-columns: 272px minmax(0, 1fr);
         }
         .side-panel {
           grid-column: 1 / -1;
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 14px;
+          gap: 12px;
         }
       }
       @media (max-width: 1120px) {
+        main {
+          padding: 12px;
+        }
         .app-shell,
         .diagnostics,
         .chat-shell,
@@ -489,14 +557,44 @@ export function renderHtmlPage({ homePath = process.env.HOME || "" } = {}) {
         .bot-hero,
         .overview-metrics,
         .side-panel {
-          grid-template-columns: 1fr;
+          grid-template-columns: minmax(0, 1fr);
         }
-        .hero-actions {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          min-width: 0;
+        .topbar,
+        .bot-hero {
+          align-items: stretch;
         }
+        .hero-actions,
         .status-strip {
           justify-content: flex-start;
+          max-width: none;
+        }
+        .toolbar input {
+          width: 100%;
+        }
+      }
+      @media (max-width: 640px) {
+        .panel,
+        .card {
+          padding: 12px;
+        }
+        .tabs {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .tab {
+          width: 100%;
+        }
+        .section-title,
+        .toolbar {
+          align-items: stretch;
+          flex-direction: column;
+        }
+        .toolbar button,
+        .hero-actions button {
+          width: 100%;
+        }
+        .kv {
+          grid-template-columns: 1fr;
         }
       }
     </style>
@@ -505,41 +603,41 @@ export function renderHtmlPage({ homePath = process.env.HOME || "" } = {}) {
     <main>
       <section class="panel topbar">
         <div class="headline">
-          <div class="eyebrow">Autonomous Operations Console</div>
-          <h1>CodexBridge Web Console</h1>
-          <p class="subtle">Hard-sci-fi local control room for bots, sessions, goals, schedules, workspace files, and live Telegram runtime state.</p>
+          <div class="eyebrow">Local Control Console</div>
+          <h1>CodexBridge</h1>
+          <p class="subtle">Manage bots, channels, sessions, workspace files, and runtime status from one local console.</p>
         </div>
         <div class="status-strip">
-          <span class="pill accent" id="top-current-bot">current bot: loading</span>
-          <span class="pill" id="top-runtime">runtime: unknown</span>
-          <span class="pill" id="top-telegram">telegram: unknown</span>
-          <span class="pill" id="top-enabled">enabled: unknown</span>
+          <span class="pill accent" id="top-current-bot">Current bot: loading</span>
+          <span class="pill" id="top-runtime">Runtime: unknown</span>
+          <span class="pill" id="top-telegram">Telegram: unknown</span>
+          <span class="pill" id="top-enabled">Enabled: unknown</span>
         </div>
       </section>
 
       <div class="app-shell">
         <aside class="fleet-rail">
           <section class="panel">
-            <div class="section-kicker">Fleet</div>
+            <div class="section-kicker">Bots</div>
             <div class="section-title">
-              <h2>Bot Rail</h2>
-              <button class="primary" id="open-create-bot">+ New Bot</button>
+              <h2>Bot Inventory</h2>
+              <button class="primary" id="open-create-bot">New Bot</button>
             </div>
             <div class="muted-box">
-              Canonical bot config stays bot-scoped. Placeholder Telegram tokens are rejected on write.
+              Bot configuration stays scoped per bot. Secrets are validated before they are saved.
             </div>
           </section>
 
           <section class="panel">
             <div class="section-title">
-              <h3>Fleet Nodes</h3>
+              <h3>Configured Bots</h3>
             </div>
             <div id="bots" class="fleet-list">Loading...</div>
           </section>
 
           <section class="panel">
             <div class="section-title">
-              <h3>Global Actions</h3>
+              <h3>Selected Bot</h3>
             </div>
             <div class="toolbar">
               <button id="fleet-set-current">Set Current</button>
@@ -570,7 +668,7 @@ export function renderHtmlPage({ homePath = process.env.HOME || "" } = {}) {
           </section>
 
           <section class="panel mode-panel">
-            <div class="section-kicker">Work Surface</div>
+            <div class="section-kicker">Workspace</div>
             <div class="tabs" id="tabs">
               <button class="tab active" data-tab="overview">Overview</button>
               <button class="tab" data-tab="telegram">Telegram</button>
@@ -590,7 +688,7 @@ export function renderHtmlPage({ homePath = process.env.HOME || "" } = {}) {
             <div class="card-grid">
               <div class="card">
                 <div class="section-kicker">Overview</div>
-                <h3>Control Room</h3>
+                <h3>Readiness</h3>
                 <p class="subtle" id="setup-summary">Loading setup status...</p>
                 <div class="kv" id="storage-readiness">
                   <div>Storage</div><div>Checking state schema.</div>
@@ -624,7 +722,7 @@ export function renderHtmlPage({ homePath = process.env.HOME || "" } = {}) {
               </div>
               <div class="card">
                 <div class="section-kicker">Modes</div>
-                <h3>Work Surface</h3>
+                <h3>Available Modes</h3>
                 <p class="subtle">Start with a file workflow so the value is visible in the workspace, not only in chat.</p>
                 <div class="list" id="overview-demo-prompts"></div>
                 <pre>Sessions: manage session refs
@@ -636,7 +734,7 @@ Skills: installed capabilities</pre>
               </div>
               <div class="card">
                 <div class="section-kicker">Diagnostics</div>
-                <h3>Live Console</h3>
+                <h3>Logs</h3>
                 <p class="subtle">Runtime and bridge logs stay pinned at the bottom so debugging never requires leaving the current work mode.</p>
               </div>
             </div>
@@ -1080,7 +1178,7 @@ Skills: installed capabilities</pre>
 
           <section class="panel compact-card">
             <div class="section-kicker">System Summary</div>
-            <h3>Runtime Bus</h3>
+            <h3>Runtime</h3>
             <div class="kv" id="overview-runtime"></div>
             <div class="divider-title" style="margin-top:16px;">Workspace Paths</div>
             <div class="kv" id="overview-workspace"></div>
@@ -1098,7 +1196,7 @@ Skills: installed capabilities</pre>
 
           <section class="panel compact-card">
             <div class="section-kicker">Rollout</div>
-            <h3>Version Control</h3>
+            <h3>Runtime Controls</h3>
             <div class="modal-grid">
               <label>Desired Version<input id="rollout-version-input" value="v1" /></label>
             </div>
@@ -1109,7 +1207,7 @@ Skills: installed capabilities</pre>
             </div>
           </section>
         </aside>
-      </section>
+      </div>
 
       <section class="diagnostics">
         <div class="panel log-panel">
@@ -1128,7 +1226,7 @@ Skills: installed capabilities</pre>
           </div>
           <pre id="bridge-log">Loading...</pre>
         </div>
-      </div>
+      </section>
 
       <div class="toast" id="toast"></div>
 
@@ -1192,7 +1290,13 @@ Skills: installed capabilities</pre>
         });
         if (!response.ok) {
           const text = await response.text();
-          throw new Error(text || response.statusText);
+          let payload = null;
+          try {
+            payload = text ? JSON.parse(text) : null;
+          } catch {
+            payload = null;
+          }
+          throw new Error(payload?.error || text || response.statusText);
         }
         return await response.json();
       }
@@ -1215,10 +1319,10 @@ Skills: installed capabilities</pre>
       function setTopStatus(detail) {
         const bot = detail?.detail?.bot;
         const config = detail?.detail?.config;
-        document.getElementById("top-current-bot").textContent = "current bot: " + (state.currentBotId || bot?.id || "none");
-        document.getElementById("top-runtime").textContent = "runtime: " + (bot?.status || "unknown");
-        document.getElementById("top-telegram").textContent = "telegram: " + ((config?.channels?.telegram?.enabled && config?.channels?.telegram?.botToken) ? "paired" : "unpaired");
-        document.getElementById("top-enabled").textContent = "enabled: " + (bot?.enabled ? "yes" : "no");
+        document.getElementById("top-current-bot").textContent = "Current bot: " + (state.currentBotId || bot?.id || "none");
+        document.getElementById("top-runtime").textContent = "Runtime: " + (bot?.status || "unknown");
+        document.getElementById("top-telegram").textContent = "Telegram: " + ((config?.channels?.telegram?.enabled && config?.channels?.telegram?.botToken) ? "paired" : "unpaired");
+        document.getElementById("top-enabled").textContent = "Enabled: " + (bot?.enabled ? "yes" : "no");
       }
 
       function renderBadges(bot, config) {
@@ -1465,13 +1569,17 @@ Skills: installed capabilities</pre>
         if (token) {
           telegram.botToken = token;
         }
-        await request('/api/bots/' + botId + '/config', {
-          method: 'POST',
-          body: JSON.stringify({ channels: { telegram } }),
-        });
-        showToast("Saved Telegram settings");
-        await loadBots();
-        await loadDetail(botId);
+        try {
+          await request('/api/bots/' + botId + '/config', {
+            method: 'POST',
+            body: JSON.stringify({ channels: { telegram } }),
+          });
+          showToast("Saved Telegram settings");
+          await loadBots();
+          await loadDetail(botId);
+        } catch (error) {
+          showToast(error.message || "Failed to save Telegram settings");
+        }
       }
 
       async function saveFeishuSettings(botId) {
@@ -2323,18 +2431,23 @@ Skills: installed capabilities</pre>
       document.getElementById('telegram-repair').onclick = async () => {
         if (!state.selectedBotId) return;
         const token = document.getElementById('telegram-token-input').value.trim();
-        if (!token) {
+        const savedTokenPresent = Boolean(state.detail?.detail?.config?.channels?.telegram?.botToken);
+        if (!token && !savedTokenPresent) {
           showToast('Paste a real Telegram token first.');
           return;
         }
         document.getElementById("chat-output").textContent = "Send one Telegram message to the bot, then click Pair / Re-pair again if needed.";
-        await request('/api/bots/' + state.selectedBotId + '/telegram/pair', {
-          method: 'POST',
-          body: JSON.stringify({ token }),
-        });
-        showToast('Telegram pairing complete');
-        await loadBots();
-        await loadDetail(state.selectedBotId);
+        try {
+          await request('/api/bots/' + state.selectedBotId + '/telegram/pair', {
+            method: 'POST',
+            body: JSON.stringify(token ? { token } : {}),
+          });
+          showToast('Telegram pairing complete');
+          await loadBots();
+          await loadDetail(state.selectedBotId);
+        } catch (error) {
+          showToast(error.message || 'Telegram pairing failed');
+        }
       };
       document.getElementById('telegram-refresh-meta').onclick = async () => {
         if (!state.selectedBotId) return;

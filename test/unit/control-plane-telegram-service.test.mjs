@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 
 import { importFresh } from "../helpers/module.js";
 
+const VALID_TELEGRAM_TOKEN = "123456789:AAabcdef1234567890abcdef1234567890";
+
 function baseConfig() {
   return {
     channels: {
@@ -34,7 +36,7 @@ function baseConfig() {
 test("control plane telegram service builds paired config and preserves existing metadata", async () => {
   const { buildPairedTelegramConfig } = await importFresh("../../src/control-plane-telegram-service.mjs");
 
-  const next = buildPairedTelegramConfig(baseConfig(), "123456:ABCDEF", {
+  const next = buildPairedTelegramConfig(baseConfig(), VALID_TELEGRAM_TOKEN, {
     chatId: "100",
     userId: "200",
     botUsername: "new_bot",
@@ -43,7 +45,7 @@ test("control plane telegram service builds paired config and preserves existing
 
   assert.equal(next.enabled, true);
   assert.equal(next.channels.telegram.enabled, true);
-  assert.equal(next.channels.telegram.botToken, "123456:ABCDEF");
+  assert.equal(next.channels.telegram.botToken, VALID_TELEGRAM_TOKEN);
   assert.equal(next.channels.telegram.botUsername, "new_bot");
   assert.equal(next.channels.telegram.metadata.chats["1"].title, "Existing");
   assert.equal(next.channels.telegram.metadata.chats["100"].label, "@alice");
@@ -78,9 +80,9 @@ test("control plane telegram service pairs through injected dependencies", async
   const { pairTelegramForControlPlane } = await importFresh("../../src/control-plane-telegram-service.mjs");
   const updates = [];
 
-  const result = await pairTelegramForControlPlane("bot-a", "123456:ABCDEF", {
+  const result = await pairTelegramForControlPlane("bot-a", VALID_TELEGRAM_TOKEN, {
     pairFn: async (token) => {
-      assert.equal(token, "123456:ABCDEF");
+      assert.equal(token, VALID_TELEGRAM_TOKEN);
       return {
         chatId: "100",
         userId: "200",

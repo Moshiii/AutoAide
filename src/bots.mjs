@@ -27,6 +27,7 @@ import {
   writeRegistry,
 } from "./config.mjs";
 import { getChannelAdapter } from "./channel-adapters.mjs";
+import { UserInputError } from "./errors.mjs";
 import {
   clearPidFile,
   isPidRunning,
@@ -341,12 +342,12 @@ export async function startBot(botId) {
   if (!adapter) {
     const errorMessage = `Bot ${botId} is not ready to start: unsupported channel ${bot.channel}.`;
     await markBotStoppedWithError(bot, errorMessage);
-    throw new Error(errorMessage);
+    throw new UserInputError(errorMessage, { code: "bot_channel_unsupported" });
   }
   if (!adapter.isConfigured(config)) {
     const errorMessage = `Bot ${botId} is not ready to start: ${adapter.label} is not configured.`;
     await markBotStoppedWithError(bot, errorMessage);
-    throw new Error(errorMessage);
+    throw new UserInputError(errorMessage, { code: "bot_channel_not_configured" });
   }
   await ensureBotHome(bot.homePath);
   const runtimeLog = getBotRuntimeLogPath(bot.homePath);

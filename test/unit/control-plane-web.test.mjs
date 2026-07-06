@@ -4,6 +4,8 @@ import path from "node:path";
 
 import { importFresh, withTempHome } from "../helpers/module.js";
 
+const VALID_TELEGRAM_TOKEN = "123456789:AAabcdef1234567890abcdef1234567890";
+
 test("control plane web keeps the request authorization helper exported", async () => {
   const { isWebRequestAuthorized } = await importFresh("../../src/control-plane-web.mjs");
 
@@ -76,7 +78,7 @@ test("getBotControlPlaneDetail includes setup guide for quick start readiness", 
         channels: {
           telegram: {
             enabled: true,
-            botToken: "123456:ABCDEF",
+            botToken: VALID_TELEGRAM_TOKEN,
             botUsername: "quick_bot",
             groups: {
               allowedUserIds: ["123"],
@@ -241,7 +243,7 @@ test("control plane web server exposes logs and config update endpoints", async 
           name: "Gamma Two",
           channels: {
             telegram: {
-              botToken: "123456:ABCDEF",
+              botToken: VALID_TELEGRAM_TOKEN,
             },
           },
         }),
@@ -255,7 +257,7 @@ test("control plane web server exposes logs and config update endpoints", async 
       assert.equal(detailResponse.status, 200);
       const detailPayload = await detailResponse.json();
       assert.equal(detailPayload.detail.config.channels.telegram.botToken, "[redacted]");
-      assert.equal(JSON.stringify(detailPayload).includes("123456:ABCDEF"), false);
+      assert.equal(JSON.stringify(detailPayload).includes(VALID_TELEGRAM_TOKEN), false);
       assert.equal(detailPayload.migrationStatus.pending.length, 1);
 
       const migrationResponse = await fetch(`http://${runtime.host}:${runtime.port}/api/bots/gamma/migrations/run`, {
@@ -462,7 +464,7 @@ test("control plane web server exposes logs and config update endpoints", async 
 
       const persisted = await readConfig(path.join(tempHome, "bots", "gamma"));
       assert.equal(persisted.channels.telegram.enabled, true);
-      assert.equal(persisted.channels.telegram.botToken, "123456:ABCDEF");
+      assert.equal(persisted.channels.telegram.botToken, VALID_TELEGRAM_TOKEN);
       assert.equal(persisted.channels.telegram.botUsername, "gamma_quick_bot");
       assert.equal(persisted.channels.telegram.groups.requireExplicitMention, false);
       assert.deepEqual(persisted.channels.telegram.private.allowedChatIds, ["100", "101"]);
@@ -722,7 +724,7 @@ test("control plane quick test preflight recognizes configured IM setup", async 
           channels: {
             telegram: {
               enabled: true,
-              botToken: "123456:ABCDEF",
+              botToken: VALID_TELEGRAM_TOKEN,
               botUsername: "ready_bot",
               groups: {
                 allowedUserIds: ["123"],
@@ -868,7 +870,7 @@ test("web config update rejects placeholder telegram tokens", async () => {
         channels: {
           telegram: {
             enabled: true,
-            botToken: "real-token",
+            botToken: VALID_TELEGRAM_TOKEN,
             botUsername: "epsilon_bot",
           },
         },
@@ -898,7 +900,31 @@ test("web config update rejects placeholder telegram tokens", async () => {
       assert.equal(payload.code, "placeholder_telegram_token");
 
       const persisted = await readConfig(path.join(tempHome, "bots", "epsilon"));
-      assert.equal(persisted.channels.telegram.botToken, "real-token");
+      assert.equal(persisted.channels.telegram.botToken, VALID_TELEGRAM_TOKEN);
+    } finally {
+      await runtime.close();
+    }
+  });
+});
+
+test("web bot start returns user error when channel is unconfigured", async () => {
+  await withTempHome(async () => {
+    const { createBot } = await importFresh("../../src/bots.mjs");
+    const { startControlPlaneWebServer } = await importFresh("../../src/control-plane-web.mjs");
+
+    await createBot({ id: "start-missing-config", name: "Start Missing Config" });
+
+    const runtime = await startControlPlaneWebServer({ port: 0 });
+    try {
+      const response = await fetch(`http://${runtime.host}:${runtime.port}/api/bots/start-missing-config/start`, {
+        method: "POST",
+      });
+
+      assert.equal(response.status, 400);
+      const payload = await response.json();
+      assert.match(payload.error, /Telegram is not configured/);
+      assert.equal(payload.kind, "user");
+      assert.equal(payload.code, "bot_channel_not_configured");
     } finally {
       await runtime.close();
     }

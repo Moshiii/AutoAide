@@ -61,6 +61,46 @@ function printJson(value) {
   console.log(JSON.stringify(value, null, 2));
 }
 
+function wantsHelp(...values) {
+  return values.some((value) => ["--help", "-h", "help"].includes(String(value || "").trim()));
+}
+
+function printUsage() {
+  console.log([
+    "Usage:",
+    "  codexbridge",
+    "  codexbridge web [status|stop|restart] [--host <host>] [--port <port>]",
+    "  codexbridge bot <create|show|use|current|run|start|stop|restart|enable|disable|delete|logs|config|set-config|health> ...",
+    "  codexbridge bots",
+    "  codexbridge skills [list|install <zip-or-path>]",
+    "",
+    "First steps:",
+    "  codexbridge web",
+    "  codexbridge bot current",
+    "  codexbridge bot health default",
+    "",
+    "Set CODEXBRIDGE_DEBUG=1 to print stack traces for unexpected errors.",
+  ].join("\n"));
+}
+
+function printWebUsage() {
+  console.log([
+    "Usage:",
+    "  codexbridge web [--host 127.0.0.1] [--port 8787]",
+    "  codexbridge web status",
+    "  codexbridge web stop",
+    "  codexbridge web restart [--host 127.0.0.1] [--port 8787]",
+    "",
+    "Non-localhost hosts require CODEXBRIDGE_WEB_TOKEN.",
+  ].join("\n"));
+}
+
+function printBotUsage() {
+  console.log(
+    "Usage: codexbridge bot <create|show|use|current|run|start|stop|restart|enable|disable|delete|logs|config|set-config|health> ...",
+  );
+}
+
 function isPlainObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -104,8 +144,17 @@ async function main() {
 
   const [command, subcommand, ...rest] = process.argv.slice(2);
 
+  if (wantsHelp(command)) {
+    printUsage();
+    process.exit(0);
+  }
+
   if (command === "web") {
     const flags = parseFlags([subcommand, ...rest].filter(Boolean));
+    if (wantsHelp(subcommand) || flags.help || flags.h) {
+      printWebUsage();
+      process.exit(0);
+    }
     const port = Number.parseInt(String(flags.port || "8787"), 10);
     const host = String(flags.host || "127.0.0.1");
     if (subcommand === "run") {
@@ -157,6 +206,10 @@ async function main() {
   if (command === "bot") {
     const botId = rest[0];
     const flags = parseFlags(rest.slice(1));
+    if (wantsHelp(subcommand) || flags.help || flags.h) {
+      printBotUsage();
+      process.exit(0);
+    }
 
     switch (subcommand) {
       case "create": {
@@ -237,9 +290,7 @@ async function main() {
         printJson(await healthCheckBot(botId));
         process.exit(0);
       default:
-        console.error(
-          "Usage: codexbridge bot <create|show|use|current|run|start|stop|restart|enable|disable|delete|logs|config|set-config|health> ...",
-        );
+        printBotUsage();
         process.exit(1);
     }
   }
@@ -287,5 +338,11 @@ await main().catch((error) => {
     process.stderr.write("\n");
     process.exit(0);
   }
-  throw error;
+  const message = error?.message || String(error);
+  if (process.env.CODEXBRIDGE_DEBUG === "1") {
+    console.error(error?.stack || message);
+  } else {
+    console.error(message);
+  }
+  process.exit(1);
 });

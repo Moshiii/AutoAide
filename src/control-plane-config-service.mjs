@@ -3,7 +3,9 @@ import { UserInputError } from "./errors.mjs";
 export const REDACTED_SECRET = "[redacted]";
 
 const PLACEHOLDER_TOKEN_PATTERNS = [
+  /^bot[-_\s]?token$/i,
   /^token-\d+$/i,
+  /^real[-_\s]?token$/i,
   /^your[-_\s]?telegram[-_\s]?token$/i,
   /^your[-_\s]?token[-_\s]?here$/i,
   /^placeholder$/i,
@@ -11,6 +13,7 @@ const PLACEHOLDER_TOKEN_PATTERNS = [
   /^example/i,
   /^test[-_\s]?token/i,
 ];
+const BOTFATHER_TOKEN_PATTERN = /^\d{5,20}:[A-Za-z0-9_-]{20,}$/;
 
 function isPlainObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -37,9 +40,15 @@ function isPlaceholderToken(value) {
 }
 
 export function assertSafeTelegramToken(token) {
-  if (isPlaceholderToken(token)) {
+  const normalized = String(token || "").trim();
+  if (isPlaceholderToken(normalized)) {
     throw new UserInputError("Refusing to save placeholder Telegram token.", {
       code: "placeholder_telegram_token",
+    });
+  }
+  if (normalized && !BOTFATHER_TOKEN_PATTERN.test(normalized)) {
+    throw new UserInputError("Telegram bot token must use the BotFather format '<digits>:<token>'.", {
+      code: "invalid_telegram_token",
     });
   }
 }

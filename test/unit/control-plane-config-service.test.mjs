@@ -3,11 +3,13 @@ import assert from "node:assert/strict";
 
 import { importFresh } from "../helpers/module.js";
 
+const VALID_TELEGRAM_TOKEN = "123456789:AAabcdef1234567890abcdef1234567890";
+
 function baseConfig() {
   return {
     channels: {
       telegram: {
-        botToken: "123456:ABCDEF",
+        botToken: VALID_TELEGRAM_TOKEN,
         botUsername: "demo_bot",
         groups: {
           requireExplicitMention: true,
@@ -59,7 +61,7 @@ test("control plane config service preserves existing secrets when patch contain
     },
   });
 
-  assert.equal(next.channels.telegram.botToken, "123456:ABCDEF");
+  assert.equal(next.channels.telegram.botToken, VALID_TELEGRAM_TOKEN);
   assert.equal(next.channels.telegram.groups.requireExplicitMention, false);
   assert.equal(next.channels.feishu.appSecret, "secret-a");
   assert.equal(next.channels.feishu.verificationToken, "verify-a");
@@ -73,5 +75,13 @@ test("control plane config service rejects placeholder Telegram tokens", async (
   assert.throws(
     () => applySafeConfigPatch(baseConfig(), { channels: { telegram: { botToken: "placeholder" } } }),
     /placeholder Telegram token/,
+  );
+  assert.throws(
+    () => applySafeConfigPatch(baseConfig(), { channels: { telegram: { botToken: "BOT_TOKEN" } } }),
+    /placeholder Telegram token/,
+  );
+  assert.throws(
+    () => applySafeConfigPatch(baseConfig(), { channels: { telegram: { botToken: "not-a-botfather-token" } } }),
+    /BotFather format/,
   );
 });
