@@ -80,7 +80,7 @@ It is currently an early local-first developer tool. The CLI, bot runtime, Teleg
 Install the current alpha from GitHub:
 
 ```bash
-npm install -g github:Moshiii/CodexBridge#v0.1.0-alpha.5
+npm install -g https://github.com/Moshiii/CodexBridge/archive/refs/tags/v0.1.0-alpha.6.tar.gz
 codexbridge
 ```
 
@@ -90,7 +90,7 @@ Or run it inside a local test project:
 mkdir codexbridge-test
 cd codexbridge-test
 npm init -y
-npm install github:Moshiii/CodexBridge#v0.1.0-alpha.5
+npm install https://github.com/Moshiii/CodexBridge/archive/refs/tags/v0.1.0-alpha.6.tar.gz
 npx codexbridge bot current
 ```
 

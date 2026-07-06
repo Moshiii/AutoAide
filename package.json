@@ -1,6 +1,6 @@
 {
   "name": "codexbridge",
-  "version": "0.1.0-alpha.5",
+  "version": "0.1.0-alpha.6",
   "description": "General-purpose AI assistant runtime with a persistent file workspace.",
   "license": "MIT",
   "type": "module",
