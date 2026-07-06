@@ -1,6 +1,6 @@
 {
   "name": "codexbridge",
-  "version": "0.1.0-alpha.2",
+  "version": "0.1.0-alpha.3",
   "description": "General-purpose AI assistant runtime with a persistent file workspace.",
   "license": "MIT",
   "type": "module",
@@ -57,17 +57,6 @@
       "optional": true
     }
   },
-  "devDependencies": {
-    "@larksuiteoapi/node-sdk": "^1.68.0"
-  },
-  "overrides": {
-    "axios": "^1.18.1",
-    "follow-redirects": "^1.16.0",
-    "form-data": "^4.0.6",
-    "protobufjs": "^7.6.5",
-    "qs": "^6.15.3",
-    "ws": "^8.21.0"
-  },
   "main": "index.js",
   "directories": {
     "doc": "docs",
@@ -116,6 +105,7 @@
     "undici-types": "^8.3.0",
     "ws": "^8.21.0"
   },
+  "devDependencies": {},
   "author": "",
   "bugs": {
     "url": "https://github.com/Moshiii/CodexBridge/issues"
