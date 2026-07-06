@@ -77,19 +77,24 @@ It is currently an early local-first developer tool. The CLI, bot runtime, Teleg
 
 ## Quickstart
 
+Install the current alpha from GitHub:
+
 ```bash
-git clone https://github.com/Moshiii/CodexBridge.git
-cd CodexBridge
-npm install
-npm link
+npm install -g github:Moshiii/CodexBridge#v0.1.0-alpha.2
 codexbridge
 ```
 
-If you do not want to link globally:
+Or run it inside a local test project:
 
 ```bash
-npx codexbridge
+mkdir codexbridge-test
+cd codexbridge-test
+npm init -y
+npm install github:Moshiii/CodexBridge#v0.1.0-alpha.2
+npx codexbridge bot current
 ```
+
+Do not use plain `npx codexbridge` until this package is published to npm; the npm registry name currently points to a different package.
 
 ## Requirements
 
@@ -97,7 +102,7 @@ npx codexbridge
 - Codex CLI installed and available as `codex`
 - A local shell environment
 
-Telegram and Feishu are optional until you want external chat channels.
+Telegram and Feishu are optional until you want external chat channels. Feishu loads the official SDK at runtime, so install `@larksuiteoapi/node-sdk` separately only when you are ready to test Feishu.
 
 ## First Run
 
@@ -287,7 +292,19 @@ When configured, CodexBridge runs the Telegram bridge under the selected bot run
 
 ### Feishu
 
-Feishu is available as an experimental channel using the official Node SDK in long-connection mode.
+Feishu is available as an experimental channel using the official Node SDK in long-connection mode. The SDK is an optional peer dependency so local-only and Telegram-only installs do not pull Feishu dependencies by default.
+
+For a project-local install:
+
+```bash
+npm install @larksuiteoapi/node-sdk
+```
+
+For a global CodexBridge install:
+
+```bash
+npm install -g @larksuiteoapi/node-sdk
+```
 
 Feishu setup requires:
 

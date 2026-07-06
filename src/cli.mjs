@@ -1,7 +1,7 @@
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import * as Lark from "@larksuiteoapi/node-sdk";
 import { pairTelegramChannel } from "./telegram-pairing.mjs";
+import { loadFeishuSdk } from "./feishu/sdk-loader.mjs";
 import {
   getBotRuntimePidPath,
   getTelegramStatePath,
@@ -62,6 +62,10 @@ function restoreCliPrompt(rl, botId) {
 }
 
 async function resolveFeishuAppOwnerUserId(appId, appSecret) {
+  const Lark = await loadFeishuSdk({ optional: true });
+  if (!Lark) {
+    return null;
+  }
   const client = new Lark.Client({
     appId,
     appSecret,

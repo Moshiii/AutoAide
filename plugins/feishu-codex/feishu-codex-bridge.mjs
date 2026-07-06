@@ -2,9 +2,8 @@ import { mkdir, open, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import * as Lark from "@larksuiteoapi/node-sdk";
-
 import { applyRunPolicyToCommandConfig, buildCommandConfig } from "../../src/codex-runner.mjs";
+import { loadFeishuSdk } from "../../src/feishu/sdk-loader.mjs";
 import {
   getChannelStatePath,
   getFeishuBridgePidPath,
@@ -612,6 +611,7 @@ async function main() {
   if (!feishu.appId || !feishu.appSecret) {
     throw new Error("Feishu bridge cannot start: bot-scoped appId/appSecret is missing.");
   }
+  const Lark = await loadFeishuSdk();
   const requireExplicitMention = feishu.requireExplicitMention ?? true;
 
   await writePidFile(DEFAULT_PID_PATH);

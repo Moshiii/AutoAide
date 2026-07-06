@@ -55,3 +55,41 @@ test("hydrateTelegramMetadata backfills usernames for existing allow lists", asy
     }
   });
 });
+
+test("hydrateTelegramMetadata treats slow Telegram lookups as best-effort", async () => {
+  await withTempHome(async (tempHome) => {
+    const originalFetch = global.fetch;
+    global.fetch = async (_url, options) => {
+      await new Promise((resolve, reject) => {
+        options.signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+      });
+    };
+
+    try {
+      const configModule = await importFresh("../../src/config.mjs");
+      await configModule.writeConfig({
+        channels: {
+          telegram: {
+            enabled: true,
+            botToken: "token-123",
+            private: {
+              allowedChatIds: ["6994248212"],
+            },
+            groups: {
+              allowedChatIds: [],
+              allowedUserIds: [],
+              requireExplicitMention: true,
+            },
+          },
+        },
+      });
+
+      const { hydrateTelegramMetadata } = await importFresh("../../src/telegram-metadata.mjs");
+      const config = await hydrateTelegramMetadata(`${tempHome}/bots/default`, { requestTimeoutMs: 1 });
+
+      assert.equal(config.channels.telegram.metadata.chats["6994248212"], undefined);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+});

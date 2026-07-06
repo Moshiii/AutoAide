@@ -1,21 +1,29 @@
 import { readConfig, writeConfig } from "./config.mjs";
 
 const TELEGRAM_API_BASE = "https://api.telegram.org";
+const DEFAULT_TELEGRAM_REQUEST_TIMEOUT_MS = 1500;
 
-async function telegramRequest(token, method, body) {
-  const response = await fetch(`${TELEGRAM_API_BASE}/bot${token}/${method}`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!response.ok) {
-    throw new Error(`Telegram API ${method} failed with HTTP ${response.status}`);
+async function telegramRequest(token, method, body, { timeoutMs = DEFAULT_TELEGRAM_REQUEST_TIMEOUT_MS } = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(`${TELEGRAM_API_BASE}/bot${token}/${method}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new Error(`Telegram API ${method} failed with HTTP ${response.status}`);
+    }
+    const payload = await response.json();
+    if (!payload.ok) {
+      throw new Error(`Telegram API ${method} error: ${payload.description ?? "unknown error"}`);
+    }
+    return payload.result;
+  } finally {
+    clearTimeout(timeout);
   }
-  const payload = await response.json();
-  if (!payload.ok) {
-    throw new Error(`Telegram API ${method} error: ${payload.description ?? "unknown error"}`);
-  }
-  return payload.result;
 }
 
 function hasUsefulMetadata(entry) {
@@ -38,7 +46,7 @@ function toUserMetadata(user) {
   };
 }
 
-export async function hydrateTelegramMetadata(botHome) {
+export async function hydrateTelegramMetadata(botHome, { requestTimeoutMs = DEFAULT_TELEGRAM_REQUEST_TIMEOUT_MS } = {}) {
   const config = await readConfig(botHome);
   const telegram = config.channels?.telegram ?? {};
   if (!telegram.enabled || !telegram.botToken) {
@@ -60,7 +68,9 @@ export async function hydrateTelegramMetadata(botHome) {
       continue;
     }
     try {
-      const chat = await telegramRequest(telegram.botToken, "getChat", { chat_id: chatId });
+      const chat = await telegramRequest(telegram.botToken, "getChat", { chat_id: chatId }, {
+        timeoutMs: requestTimeoutMs,
+      });
       nextChats[chatId] = {
         ...nextChats[chatId],
         ...toChatMetadata(chat),
@@ -76,7 +86,9 @@ export async function hydrateTelegramMetadata(botHome) {
       continue;
     }
     try {
-      const chat = await telegramRequest(telegram.botToken, "getChat", { chat_id: userId });
+      const chat = await telegramRequest(telegram.botToken, "getChat", { chat_id: userId }, {
+        timeoutMs: requestTimeoutMs,
+      });
       nextUsers[userId] = {
         ...nextUsers[userId],
         ...toUserMetadata(chat),

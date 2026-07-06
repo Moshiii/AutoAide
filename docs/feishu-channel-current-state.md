@@ -118,9 +118,12 @@ Feishu onboarding flow currently asks the user to:
 
 - [plugins/feishu-codex/feishu-codex-bridge.mjs](/Users/moshiwei/Documents/GitHub/CodexBridge/plugins/feishu-codex/feishu-codex-bridge.mjs)
 
-The bridge uses the official Feishu Node SDK:
+The bridge loads the official Feishu Node SDK at runtime:
 
 - package: `@larksuiteoapi/node-sdk`
+- loader: `src/feishu/sdk-loader.mjs`
+
+The SDK is an optional peer dependency for packaged installs, and a dev dependency for local development. Local-only and Telegram-only users should be able to install CodexBridge without pulling the Feishu SDK.
 
 It currently uses:
 
@@ -159,13 +162,14 @@ It currently tracks:
 
 ## Official SDK Dependency
 
-The current implementation depends on:
+The current implementation depends on the SDK when the Feishu channel is actually started:
 
 - `@larksuiteoapi/node-sdk`
 
-This was added to:
+Package metadata currently keeps this as:
 
-- [package.json](/Users/moshiwei/Documents/GitHub/CodexBridge/package.json)
+- an optional peer dependency for users
+- a dev dependency for repository tests and local Feishu development
 
 ## Current Runtime Model
 
