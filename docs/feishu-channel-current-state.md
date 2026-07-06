@@ -123,7 +123,7 @@ The bridge loads the official Feishu Node SDK at runtime:
 - package: `@larksuiteoapi/node-sdk`
 - loader: `src/feishu/sdk-loader.mjs`
 
-The SDK is an optional peer dependency for packaged installs. Local-only and Telegram-only users should be able to install CodexBridge without pulling the Feishu SDK. Local Feishu development requires installing the SDK explicitly next to the workspace.
+The SDK is a manual runtime dependency for Feishu installs. Local-only and Telegram-only users should be able to install CodexBridge without pulling the Feishu SDK. Local Feishu development requires installing the SDK explicitly next to the workspace.
 
 It currently uses:
 
@@ -168,7 +168,6 @@ The current implementation depends on the SDK when the Feishu channel is actuall
 
 Package metadata currently keeps this as:
 
-- an optional peer dependency for users
 - a manual install for live Feishu development and testing
 
 ## Current Runtime Model
