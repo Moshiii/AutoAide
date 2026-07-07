@@ -9,26 +9,48 @@ test("control plane page renders the control plane shell and demo prompt data", 
   const html = renderHtmlPage();
 
   assert.match(html, /CodexBridge Control Plane/);
-  assert.match(html, /Setup Checklist/);
-  assert.match(html, /Migration Flags/);
-  assert.match(html, /migration-readiness/);
+  assert.match(html, /class="app"/);
+  assert.match(html, /class="sidebar"/);
+  assert.match(html, /class="topbar"/);
+  assert.match(html, /id="page-root"/);
+  assert.match(html, /id="inspector-root"/);
+  assert.match(html, /data-nav="overview"/);
+  assert.match(html, /data-nav="setup"/);
+  assert.match(html, /data-nav="channels"/);
+  assert.match(html, /data-nav="runs"/);
+  assert.match(html, /data-nav="workspace"/);
+  assert.match(html, /data-nav="users"/);
+  assert.match(html, /data-nav="safety"/);
+  assert.match(html, /data-nav="settings"/);
+  assert.match(html, /function renderOverview/);
+  assert.match(html, /function renderSetup/);
+  assert.match(html, /function renderChannels/);
+  assert.match(html, /function renderRuns/);
+  assert.match(html, /function renderWorkspace/);
+  assert.match(html, /function renderUsers/);
+  assert.match(html, /function renderSafety/);
+  assert.match(html, /function renderSettings/);
   assert.match(html, /workspaceDemoPrompts/);
   assert.match(html, /Create a 3-day Beijing weekend plan/);
   assert.match(html, /Reply with one short sentence confirming CodexBridge is ready/);
-  assert.match(html, /function renderOperationsAdminResult/);
-  assert.match(html, /function renderMigrationReadiness/);
-  assert.match(html, /renderMigrationReadiness\(payload\.migrationReadiness\)/);
+  assert.match(html, /__openSetupStep/);
+  assert.match(html, /__useWorkspaceDemoPrompt/);
+  assert.match(html, /__allowTelegramAccess/);
+  assert.match(html, /__reviewConversationLog/);
 });
 
-test("control plane page escapes dynamic bot rail fields before assigning innerHTML", async () => {
+test("control plane page escapes dynamic fields before assigning generated HTML", async () => {
   const { renderHtmlPage } = await importFresh("../../src/control-plane-page.mjs");
 
   const html = renderHtmlPage();
 
-  assert.match(html, /'<div><strong>' \+ escapeHtml\(bot\.name\) \+ '<\/strong><\/div>'/);
-  assert.match(html, /'<div class="subtle">' \+ escapeHtml\(bot\.id\) \+ '<\/div>'/);
-  assert.match(html, /escapeHtml\(bot\.status\)/);
-  assert.doesNotMatch(html, /'<div><strong>' \+ bot\.name \+ '<\/strong><\/div>'/);
+  assert.match(html, /function escapeHtml/);
+  assert.match(html, /escapeHtml\(bot\.name \|\| bot\.id\)/);
+  assert.match(html, /statusTone\(bot\.status\)/);
+  assert.match(html, /escapeHtml\(run\.id \|\| "-"\)/);
+  assert.match(html, /escapeHtml\(user\.displayName \|\| user\.id\)/);
+  assert.doesNotMatch(html, /innerHTML = bot\.name/);
+  assert.doesNotMatch(html, /innerHTML = user\.displayName/);
 });
 
 test("control plane page injects the compact path home instead of hardcoding a developer path", async () => {
@@ -36,6 +58,6 @@ test("control plane page injects the compact path home instead of hardcoding a d
 
   const html = renderHtmlPage({ homePath: "/srv/codexbridge/" });
 
-  assert.match(html, /const home = "\/srv\/codexbridge";/);
-  assert.doesNotMatch(html, /const home = "\/Users\/moshiwei";/);
+  assert.match(html, /const compactPathHome = "\/srv\/codexbridge";/);
+  assert.doesNotMatch(html, /const compactPathHome = "\/Users\/moshiwei";/);
 });

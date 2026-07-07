@@ -142,7 +142,20 @@ test("control plane web server exposes logs and config update endpoints", async 
       const homeResponse = await fetch(`http://${runtime.host}:${runtime.port}/`);
       assert.equal(homeResponse.status, 200);
       const homeHtml = await homeResponse.text();
-      assert.match(homeHtml, /Setup Checklist/);
+      assert.match(homeHtml, /CodexBridge Control Plane/);
+      assert.match(homeHtml, /class="app"/);
+      assert.match(homeHtml, /class="sidebar"/);
+      assert.match(homeHtml, /class="topbar"/);
+      assert.match(homeHtml, /id="page-root"/);
+      assert.match(homeHtml, /id="inspector-root"/);
+      assert.match(homeHtml, /data-nav="overview"/);
+      assert.match(homeHtml, /data-nav="setup"/);
+      assert.match(homeHtml, /data-nav="channels"/);
+      assert.match(homeHtml, /data-nav="runs"/);
+      assert.match(homeHtml, /data-nav="workspace"/);
+      assert.match(homeHtml, /data-nav="users"/);
+      assert.match(homeHtml, /data-nav="safety"/);
+      assert.match(homeHtml, /data-nav="settings"/);
       assert.match(homeHtml, /__openSetupStep/);
       assert.match(homeHtml, /invite-readiness/);
       assert.match(homeHtml, /quick-test-diagnostics/);
@@ -158,10 +171,9 @@ test("control plane web server exposes logs and config update endpoints", async 
       assert.match(homeHtml, /Run File Demo/);
       assert.match(homeHtml, /__startRuntimeFromSetup/);
       assert.match(homeHtml, /__runQuickTestFromSetup/);
-      assert.match(homeHtml, /Start Runtime/);
-      assert.match(homeHtml, /Do not invite users yet/);
+      assert.match(homeHtml, /Start runtime/);
+      assert.match(homeHtml, /Not ready to invite users/);
       assert.match(homeHtml, /Ready to invite users/);
-      assert.match(homeHtml, /storage-readiness/);
       assert.match(homeHtml, /Run migrations before inviting users/);
       assert.match(homeHtml, /run-state-migrations/);
       assert.match(homeHtml, /Save Telegram Settings/);
@@ -227,7 +239,7 @@ test("control plane web server exposes logs and config update endpoints", async 
       assert.match(homeHtml, /Ban blocks both group and private chat/);
       assert.match(homeHtml, /prompt_injection_signal/);
       assert.match(homeHtml, /Use Quick Test or ask from Telegram\/Feishu/);
-      assert.match(homeHtml, /Clear User\/Run and set Review, Label, and Channel back to all/);
+      assert.match(homeHtml, /Application policy is active, but hard host isolation is not verified/);
 
       const logsResponse = await fetch(`http://${runtime.host}:${runtime.port}/api/bots/gamma/logs`);
       assert.equal(logsResponse.status, 200);
