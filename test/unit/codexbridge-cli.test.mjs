@@ -57,3 +57,16 @@ test("codexbridge bot start prints a clean user-facing error", async () => {
     assert.doesNotMatch(result.stderr, /at async main/);
   });
 });
+
+test("codexbridge does not print the startup logo outside an interactive TTY", async () => {
+  await withTempHome(async (tempHome) => {
+    const result = await runCodexBridge(["--help"], {
+      env: { CODEXBRIDGE_HOME: tempHome },
+    });
+
+    assert.equal(result.code, 0);
+    assert.doesNotMatch(result.stdout, /░██████/);
+    assert.doesNotMatch(result.stdout, /personal AI shell/);
+    assert.equal(result.stderr, "");
+  });
+});

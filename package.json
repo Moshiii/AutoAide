@@ -23,6 +23,7 @@
   },
   "files": [
     "bin/",
+    "crates/",
     "docs/demo-workflows.md",
     "docs/feishu-channel-current-state.md",
     "docs/reference/templates/",
@@ -41,6 +42,7 @@
     "ci": "npm test",
     "postinstall": "node ./scripts/postinstall.mjs",
     "start": "node ./bin/codexbridge.mjs",
+    "tui": "node ./bin/codexbridge.mjs tui",
     "isolation:probe": "node ./bin/isolation-probe.mjs",
     "rollback:check": "node ./bin/rollback-readiness.mjs",
     "state:migrate": "node ./bin/state-migrations.mjs",
@@ -48,5 +50,10 @@
   },
   "engines": {
     "node": ">=22"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.7.0",
+    "log-update": "^8.0.0",
+    "yoctocolors": "^2.1.2"
   }
 }

@@ -62,10 +62,16 @@ test("cli formatters render status cards and CLI results", async () => {
     const creditsInfo = { account: { userId: "cli:owner", balance: 7 } };
 
     const overview = stripAnsi(formatters.formatStatusOverview(botContext, config, { pid: 123 }, cliState, bootstrapInfo, creditsInfo));
+    const launch = stripAnsi(formatters.formatLaunchSummary(botContext, config, { pid: 123 }, cliState, bootstrapInfo, "codex 1.2.3"));
     const status = stripAnsi(formatters.formatCliStatus(botContext, config, { pid: 123 }, cliState, bootstrapInfo, creditsInfo));
 
     assert.match(overview, /Current Bot/);
     assert.match(overview, /runtime:\s+online/);
+    assert.match(launch, /CodexBridge/);
+    assert.match(launch, /model\s+:\s+gpt-5\.4-mini/);
+    assert.match(launch, /workspace:/);
+    assert.match(launch, /codex cli:\s+codex 1\.2\.3/);
+    assert.match(launch, /memory\s+:\s+personalized/);
     assert.match(status, /CodexBridge Status/);
     assert.match(status, /private chats:\s+Alice \(10\)/);
     assert.match(status, /group users:\s+@bob \(30\)/);

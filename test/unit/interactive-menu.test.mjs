@@ -19,6 +19,41 @@ test("renderSelectionCard highlights the selected item", async () => {
   assert.match(plain, /Use Enter to choose\./);
 });
 
+test("renderSelectionCard places header lines outside the menu card", async () => {
+  const { renderSelectionCard } = await importFresh("../../src/interactive-menu.mjs");
+
+  const rendered = renderSelectionCard("First-Run Setup", [
+    { label: "Finish setup now", value: "finish" },
+  ], 0, {
+    headerLines: ["CodexBridge Logo"],
+    bodyLines: ["Use your first conversation to establish preferences."],
+  });
+  const plain = rendered.replace(/\x1b\[[0-9;]*m/g, "");
+  const lines = plain.split("\n");
+
+  assert.equal(lines[0], "CodexBridge Logo");
+  assert.equal(lines[1], "");
+  assert.match(lines[2], /^╭/);
+  assert.match(plain, /First-Run Setup/);
+  assert.match(plain, /› Finish setup now/);
+});
+
+test("renderSelectionCard can render static numbered choices", async () => {
+  const { renderSelectionCard } = await importFresh("../../src/interactive-menu.mjs");
+
+  const rendered = renderSelectionCard("First-Run Setup", [
+    { label: "Finish setup now", value: "finish" },
+    { label: "Skip for now", value: "skip" },
+  ], 0, {
+    numbered: true,
+  });
+  const plain = rendered.replace(/\x1b\[[0-9;]*m/g, "");
+
+  assert.match(plain, /1\. Finish setup now/);
+  assert.match(plain, /2\. Skip for now/);
+  assert.doesNotMatch(plain, /›/);
+});
+
 test("parseTextMenuResponse selects the default item on empty input", async () => {
   const { parseTextMenuResponse } = await importFresh("../../src/interactive-menu.mjs");
   const items = [

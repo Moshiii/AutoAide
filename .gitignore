@@ -1,5 +1,6 @@
 node_modules/
 dist/
+crates/**/target/
 *.tsbuildinfo
 *.tgz
 .DS_Store

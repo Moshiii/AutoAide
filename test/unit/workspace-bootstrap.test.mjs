@@ -70,6 +70,25 @@ test("completeBootstrap updates identity, user, soul, and removes BOOTSTRAP.md",
   });
 });
 
+test("completeBootstrap accepts the default CodexBridge assistant name after setup", async () => {
+  await withTempHome(async (tempHome) => {
+    const bootstrap = await importFresh("../../src/workspace-bootstrap.mjs");
+    await bootstrap.ensureWorkspaceBootstrap();
+
+    const result = await bootstrap.completeBootstrap({
+      userName: "Moshi",
+      assistantName: "CodexBridge",
+      assistantType: "personal operator",
+      vibe: "pragmatic",
+      userPreference: "keep it concise",
+    });
+
+    assert.equal(result.bootstrapPending, false);
+    assert.equal(result.identityReady, true);
+    assert.equal(result.userReady, true);
+  });
+});
+
 test("ensureWorkspaceBootstrap stays pending when placeholders remain", async () => {
   await withTempHome(async (tempHome) => {
     const bootstrap = await importFresh("../../src/workspace-bootstrap.mjs");

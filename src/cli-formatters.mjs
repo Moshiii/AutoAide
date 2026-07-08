@@ -7,7 +7,7 @@ import {
   getWorkspacePath,
 } from "./config.mjs";
 import { resolveCliCreditsUserId } from "./user-credits.mjs";
-import { formatKeyValueCard, formatListCard } from "./ui/banner.mjs";
+import { formatKeyValueCard, formatKeyValueGridCard, formatListCard } from "./ui/banner.mjs";
 
 export function formatBotPrompt(botId) {
   return `codexbridge:${botId}> `;
@@ -72,6 +72,25 @@ export function formatStatusOverview(botContext, config, bridgeProcess, cliState
     ["telegram", telegram?.enabled ? "paired" : "unpaired"],
     ["feishu", feishu?.enabled ? "configured" : "not configured"],
   ]);
+}
+
+export function formatLaunchSummary(botContext, config, bridgeProcess, cliState, bootstrapInfo, codexCliStatus = "unknown") {
+  const telegram = getTelegramConfigView(config);
+  const feishu = getFeishuConfigView(config);
+  const runtimeOnline = Boolean(bridgeProcess?.pid);
+  const activeChannel = config.channel || "telegram";
+  return formatKeyValueGridCard("CodexBridge", [
+    ["bot", botContext.botId],
+    ["model", config.runtime?.model || "gpt-5.4"],
+    ["runtime", runtimeOnline ? "online" : "offline"],
+    ["channel", activeChannel],
+    ["telegram", telegram?.enabled ? "paired" : "unpaired"],
+    ["feishu", feishu?.enabled ? "configured" : "not configured"],
+    ["memory", bootstrapInfo.bootstrapPending ? "not personalized" : "personalized"],
+    ["session", cliState.activeSessionLabel],
+    { label: "codex cli", value: codexCliStatus, span: "full" },
+    { label: "workspace", value: getWorkspacePath(botContext.botHome), span: "full" },
+  ], { columns: 2 });
 }
 
 export function formatCliStatus(botContext, config, bridgeProcess, cliState, bootstrapInfo, creditsInfo = null) {

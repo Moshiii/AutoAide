@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+import { spawn } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { startCli } from "../src/cli.mjs";
 import {
   canaryRollout,
@@ -38,6 +41,8 @@ import {
   stopWebRuntime,
 } from "../src/web-runtime.mjs";
 
+const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
 function parseFlags(values) {
   const flags = {};
   for (let index = 0; index < values.length; index += 1) {
@@ -70,17 +75,44 @@ function printUsage() {
     "Usage:",
     "  codexbridge",
     "  codexbridge web [status|stop|restart] [--host <host>] [--port <port>]",
+    "  codexbridge tui",
     "  codexbridge bot <create|show|use|current|run|start|stop|restart|enable|disable|delete|logs|config|set-config|health> ...",
     "  codexbridge bots",
     "  codexbridge skills [list|install <zip-or-path>]",
     "",
     "First steps:",
     "  codexbridge web",
+    "  codexbridge tui",
     "  codexbridge bot current",
     "  codexbridge bot health default",
     "",
     "Set CODEXBRIDGE_DEBUG=1 to print stack traces for unexpected errors.",
   ].join("\n"));
+}
+
+function runRatatui() {
+  const manifestPath = path.join(PROJECT_ROOT, "crates", "codexbridge-tui", "Cargo.toml");
+  const bridgeBin = path.join(PROJECT_ROOT, "bin", "codexbridge.mjs");
+  const child = spawn("cargo", [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    manifestPath,
+    "--",
+    "--bridge-bin",
+    bridgeBin,
+  ], {
+    cwd: PROJECT_ROOT,
+    env: process.env,
+    stdio: "inherit",
+  });
+  child.on("exit", (code, signal) => {
+    if (signal) {
+      process.kill(process.pid, signal);
+      return;
+    }
+    process.exit(code ?? 0);
+  });
 }
 
 function printWebUsage() {
@@ -177,6 +209,11 @@ async function main() {
     const runtime = await ensureWebRuntime({ port, host });
     console.log(`CodexBridge control plane web running at ${runtime.url}`);
     process.exit(0);
+  }
+
+  if (command === "tui") {
+    runRatatui();
+    await new Promise(() => {});
   }
 
   if (command === "skills") {

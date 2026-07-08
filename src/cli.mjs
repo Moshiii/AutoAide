@@ -1,7 +1,10 @@
 import { createInterface } from "node:readline/promises";
+import { spawnSync } from "node:child_process";
 import { stdin as input, stdout as output } from "node:process";
+import { confirm as clackConfirm, isCancel as isClackCancel, text as clackText } from "@clack/prompts";
 import { pairTelegramChannel } from "./telegram-pairing.mjs";
 import { loadFeishuSdk } from "./feishu/sdk-loader.mjs";
+import { createCliRenderer } from "./cli-renderer.mjs";
 import {
   getBotRuntimePidPath,
   getTelegramStatePath,
@@ -34,6 +37,7 @@ import {
   formatBotPrompt,
   formatCliSessions,
   formatCliStatus,
+  formatLaunchSummary,
   formatStatusOverview,
   getRunningTurn,
   getTelegramConfigView,
@@ -46,15 +50,118 @@ function isReadlineAbortError(error) {
   return error?.code === "ABORT_ERR" || error?.name === "AbortError";
 }
 
-function clearCliViewport() {
-  if (!output?.isTTY) {
+function isInteractiveTerminal() {
+  return Boolean(input?.isTTY && output?.isTTY);
+}
+
+function createCliAbortError() {
+  const error = new Error("Prompt cancelled.");
+  error.code = "ABORT_ERR";
+  return error;
+}
+
+function restoreInteractiveInput() {
+  if (!input?.isTTY) {
     return;
   }
-  output.write("\x1b[2J\x1b[H");
+  if (typeof input.setRawMode === "function") {
+    input.setRawMode(false);
+  }
+  if (typeof input.resume === "function") {
+    input.resume();
+  }
+}
+
+function clearInteractiveScreen() {
+  if (isInteractiveTerminal()) {
+    output.write("\x1b[2J\x1b[H");
+  }
+}
+
+async function askCliText(rl, message, {
+  defaultValue = "",
+  placeholder = "",
+  required = false,
+} = {}) {
+  if (isInteractiveTerminal()) {
+    try {
+      const answer = await clackText({
+        message,
+        defaultValue,
+        placeholder,
+        input,
+        output,
+        validate(value) {
+          if (required && !String(value || "").trim()) {
+            return "Required.";
+          }
+          return undefined;
+        },
+      });
+      if (isClackCancel(answer)) {
+        throw createCliAbortError();
+      }
+      return String(answer || "").trim();
+    } finally {
+      restoreInteractiveInput();
+    }
+  }
+
+  const prompt = defaultValue ? `${message} [${defaultValue}]: ` : `${message}: `;
+  const answer = (await rl.question(prompt)).trim();
+  return answer || defaultValue;
+}
+
+async function askCliConfirm(rl, message, {
+  defaultValue = true,
+} = {}) {
+  if (isInteractiveTerminal()) {
+    try {
+      const answer = await clackConfirm({
+        message,
+        initialValue: defaultValue,
+        input,
+        output,
+      });
+      if (isClackCancel(answer)) {
+        throw createCliAbortError();
+      }
+      return Boolean(answer);
+    } finally {
+      restoreInteractiveInput();
+    }
+  }
+
+  const suffix = defaultValue ? " [Y/n] " : " [y/N] ";
+  const answer = (await rl.question(`${message}${suffix}`)).trim();
+  if (!answer) {
+    return defaultValue;
+  }
+  return /^y/i.test(answer);
+}
+
+async function waitForCliEnter(rl, message) {
+  if (isInteractiveTerminal()) {
+    await askCliText(rl, message, {
+      defaultValue: "",
+      placeholder: "Press Enter when ready",
+    });
+    return;
+  }
+  await rl.question("");
+}
+
+async function askCliInputLine(rl, botId) {
+  if (isInteractiveTerminal()) {
+    return await askCliText(rl, `CodexBridge · ${botId}`, {
+      placeholder: "Type a request, /menu, or /exit",
+    });
+  }
+  return (await rl.question(formatBotPrompt(botId))).trim();
 }
 
 function restoreCliPrompt(rl, botId) {
-  if (!output?.isTTY || typeof rl?.write !== "function") {
+  if (isInteractiveTerminal() || !output?.isTTY || typeof rl?.write !== "function") {
     return;
   }
   output.write(formatBotPrompt(botId));
@@ -83,19 +190,12 @@ async function resolveFeishuAppOwnerUserId(appId, appSecret) {
   return String(response?.data?.app?.creator_id || "").trim() || null;
 }
 
-function buildBootstrapSummaryLines() {
-  return [
-    "Use your first conversation to establish:",
-    "- what the user should be called",
-    "- what the assistant should be called",
-    "- tone, vibe, and basic preferences",
-    "Those details belong in IDENTITY.md, USER.md, and SOUL.md.",
-  ];
-}
-
 async function askBootstrapQuestion(rl, prompt, fallback = "") {
   try {
-    const answer = (await rl.question(prompt)).trim();
+    const answer = await askCliText(rl, prompt.replace(/:\s*$/, "").trim(), {
+      defaultValue: fallback,
+      required: !fallback,
+    });
     return answer || fallback;
   } catch (error) {
     if (isReadlineAbortError(error)) {
@@ -120,7 +220,7 @@ async function runBootstrapFlow(rl, bootstrapInfoRef, botContextRef) {
     ])}\n`,
   );
 
-  const userName = await askBootstrapQuestion(rl, "What should I call you? ");
+  const userName = await askBootstrapQuestion(rl, "What should I call you?");
   if (!userName) {
     console.log(`${formatMessageCard("Bootstrap Pending", ["I need your name to continue."])}\n`);
     return;
@@ -128,33 +228,31 @@ async function runBootstrapFlow(rl, bootstrapInfoRef, botContextRef) {
 
   const assistantName = await askBootstrapQuestion(
     rl,
-    "What should I be called? [CodexBridge] ",
+    "What should I be called?",
     "CodexBridge",
   );
-  const useDefaults = await askBootstrapQuestion(
-    rl,
-    "Use the default assistant style and preferences? [Y/n] ",
-    "y",
-  );
-  const wantsCustomSetup = /^n/i.test(useDefaults);
+  const useDefaults = await askCliConfirm(rl, "Use the default assistant style and preferences?", {
+    defaultValue: true,
+  });
+  const wantsCustomSetup = !useDefaults;
   const assistantType = wantsCustomSetup
     ? await askBootstrapQuestion(
       rl,
-      "What kind of assistant do you want me to be? [personal operator] ",
+      "What kind of assistant do you want me to be?",
       "personal operator",
     )
     : "personal operator";
   const vibe = wantsCustomSetup
     ? await askBootstrapQuestion(
       rl,
-      "What vibe should I have? [pragmatic, clear, and steady] ",
+      "What vibe should I have?",
       "pragmatic, clear, and steady",
     )
     : "pragmatic, clear, and steady";
   const userPreference = wantsCustomSetup
     ? await askBootstrapQuestion(
       rl,
-      "Any one-line preference I should remember? [keep it concise] ",
+      "Any one-line preference I should remember?",
       "keep it concise",
     )
     : "keep it concise";
@@ -178,47 +276,6 @@ async function runBootstrapFlow(rl, bootstrapInfoRef, botContextRef) {
       "- SOUL.md",
     ])}\n`,
   );
-}
-
-async function maybeHandlePendingBootstrap(rl, botContextRef, configRef, bridgeProcessRef, cliStateRef, bootstrapInfoRef, runningTurns) {
-  while (bootstrapInfoRef.current.bootstrapPending) {
-    const choice = await promptSelect({
-      rl,
-      input,
-      output,
-      title: "First-Run Setup",
-      items: [
-        { label: "Finish setup now", value: "finish" },
-        { label: "Skip for now", value: "skip" },
-        { label: "Switch to another bot", value: "switch-bot" },
-        { label: "Exit CodexBridge", value: "exit" },
-      ],
-      defaultIndex: 0,
-      bodyLines: buildBootstrapSummaryLines(),
-      hintLines: [
-        "A new bot can stay unconfigured until you are ready.",
-      ],
-      fullscreen: true,
-      fallbackPrompt: "Setup [1=finish, 2=skip, 3=switch bot, 4=exit]: ",
-    });
-
-    if (choice.action === "cancel" || choice.value === "skip") {
-      return true;
-    }
-    if (choice.value === "exit") {
-      rl.close();
-      return "exit";
-    }
-    if (choice.value === "switch-bot") {
-      await openBotPicker(rl, botContextRef, configRef, bridgeProcessRef, cliStateRef, bootstrapInfoRef, runningTurns);
-      continue;
-    }
-    await runBootstrapFlow(rl, bootstrapInfoRef, botContextRef);
-    if (!bootstrapInfoRef.current.bootstrapPending) {
-      return true;
-    }
-  }
-  return true;
 }
 
 async function autoFillTelegramChatIdIfNeeded(config, botHome) {
@@ -252,7 +309,6 @@ async function selectChannelType(rl) {
     hintLines: [
       "Use ↑/↓ and Enter. Esc cancels.",
     ],
-    fullscreen: true,
     defaultIndex: 0,
     fallbackPrompt: "Channel [1=Telegram, 2=Feishu, q=cancel]: ",
   });
@@ -272,7 +328,9 @@ async function handleTelegramChannelSetup(rl, botContextRef, config, bridgeProce
     ])}\n`,
   );
 
-  const token = (await rl.question("Telegram bot token: ")).trim();
+  const token = await askCliText(rl, "Telegram bot token", {
+    required: true,
+  });
   if (!token) {
     console.log(`${formatMessageCard("Telegram Pairing", ["Pairing cancelled."])}\n`);
     return;
@@ -290,7 +348,7 @@ async function handleTelegramChannelSetup(rl, botContextRef, config, bridgeProce
   }
 
   console.log(`\n${formatMessageCard("Telegram Pairing", ["Now send one message to your bot in Telegram, then press Enter here."])}\n`);
-  await rl.question("");
+  await waitForCliEnter(rl, "I sent a Telegram message to the bot");
 
   try {
     let paired = null;
@@ -412,8 +470,12 @@ async function handleFeishuChannelSetup(rl, botContextRef, config, bridgeProcess
     ])}\n`,
   );
 
-  const appId = (await rl.question("Feishu app id: ")).trim();
-  const appSecret = (await rl.question("Feishu app secret: ")).trim();
+  const appId = await askCliText(rl, "Feishu app id", {
+    required: true,
+  });
+  const appSecret = await askCliText(rl, "Feishu app secret", {
+    required: true,
+  });
   if (!appId || !appSecret) {
     console.log(`${formatMessageCard("Feishu Setup", ["Setup cancelled."])}\n`);
     return;
@@ -554,13 +616,19 @@ function formatBotPickerLabel(bot, currentBotId) {
 
 async function promptForBotBasics(rl, defaults = {}) {
   const providedName = String(defaults.name || "").trim();
-  const name = (await rl.question(`Bot name${providedName ? ` [${providedName}]` : ""}: `)).trim() || providedName;
+  const name = await askCliText(rl, "Bot name", {
+    defaultValue: providedName,
+    required: !providedName,
+  });
   if (!name) {
     return null;
   }
   const derivedId = normalizeBotId(name) || defaults.id || "";
   const providedId = String(defaults.id || "").trim();
-  const id = normalizeBotId((await rl.question(`Bot id [${providedId || derivedId}]: `)).trim() || providedId || derivedId);
+  const id = normalizeBotId(await askCliText(rl, "Bot id", {
+    defaultValue: providedId || derivedId,
+    required: true,
+  }));
   if (!id) {
     return null;
   }
@@ -593,7 +661,10 @@ async function createBotInteractive(rl, botContextRef) {
 async function renameBotInteractive(rl, botId, botContextRef, configRef) {
   const bot = await getBot(botId);
   const config = await readConfig(bot.homePath);
-  const nextName = (await rl.question(`Rename bot ${botId} [${config.name || bot.name}]: `)).trim();
+  const nextName = await askCliText(rl, `Rename bot ${botId}`, {
+    defaultValue: config.name || bot.name,
+    required: true,
+  });
   if (!nextName) {
     console.log(`${formatMessageCard("Rename Bot", ["Rename cancelled."])}\n`);
     return false;
@@ -655,6 +726,7 @@ async function openBotPicker(rl, botContextRef, configRef, bridgeProcessRef, cli
   let highlightedBotId = botContextRef.current.botId;
 
   while (true) {
+    clearInteractiveScreen();
     const bots = await listBots();
     const currentIndex = Math.max(0, bots.findIndex((bot) => bot.id === highlightedBotId || bot.id === botContextRef.current.botId));
     const choice = await promptSelect({
@@ -671,7 +743,6 @@ async function openBotPicker(rl, botContextRef, configRef, bridgeProcessRef, cli
         "Enter switches to the highlighted bot.",
         "Esc returns to the prompt.",
       ],
-      fullscreen: true,
       shortcuts: [
         { key: "n", label: "new bot", action: "create" },
         { key: "r", label: "rename", action: "rename" },
@@ -732,26 +803,28 @@ async function openBotPicker(rl, botContextRef, configRef, bridgeProcessRef, cli
       return true;
     }
     await switchCliBot(targetBotId, botContextRef, configRef, bridgeProcessRef, cliStateRef, bootstrapInfoRef);
-    return true;
+    return "changed";
   }
 }
 
-async function startCliMessage(line, rl, botContextRef, cliState, config, runningTurns) {
+async function startCliMessage(line, rl, botContextRef, cliState, config, runningTurns, renderer) {
   const active = cliState.sessions[cliState.activeSessionLabel];
   if (getRunningTurn(runningTurns, active.label)) {
-    console.log(`${formatMessageCard("Session Busy", [`${active.label} is already running. Use /stop first.`])}\n`);
+    renderer.sessionBusy(active.label);
     restoreCliPrompt(rl, botContextRef.current.botId);
     return;
   }
   const commandConfig = {
     ...buildCommandConfig(config),
     onStatus(status) {
-      console.log(`[status] ${status}`);
-      restoreCliPrompt(rl, botContextRef.current.botId);
+      renderer.updateRunStatus(status);
+      if (!renderer.isInteractive) {
+        restoreCliPrompt(rl, botContextRef.current.botId);
+      }
     },
   };
   const prompt = await buildWorkspacePrompt(line, { workspacePath: getWorkspacePath(botContextRef.current.botHome) });
-  console.log(`Running on [${active.label}]...\n`);
+  renderer.startRun(active.label);
 
   const started = startCliTurn(prompt, active.cliSessionRef, commandConfig);
   const turn = {
@@ -770,14 +843,15 @@ async function startCliMessage(line, rl, botContextRef, cliState, config, runnin
         active.updatedAt = new Date().toISOString();
         await writeCliState(cliState, botContextRef.current.botHome);
       }
-      console.log(`\n${renderCliResult(result)}\n`);
+      renderer.finishRun({ ok: result.ok, sessionLabel: active.label });
+      renderer.printBlock(renderCliResult(result));
       restoreCliPrompt(rl, botContextRef.current.botId);
     })
     .catch((error) => {
       if (runningTurns.get(active.label) === turn) {
         runningTurns.delete(active.label);
       }
-      console.log(`\n${formatMessageCard("Turn Failed", [error.message])}\n`);
+      renderer.failRun(`Turn failed: ${error.message}`);
       restoreCliPrompt(rl, botContextRef.current.botId);
     });
 }
@@ -786,12 +860,58 @@ async function restartBotRuntime(botId) {
   return await restartBot(botId);
 }
 
+function getCodexCliStatus() {
+  if (String(process.env.CODEX_START_COMMAND || "").trim()) {
+    return "custom command";
+  }
+
+  const result = spawnSync("codex", ["--version"], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: 2000,
+  });
+
+  if (result.error?.code === "ENOENT") {
+    return "not found";
+  }
+  if (result.error) {
+    return `unavailable (${result.error.code || result.error.message})`;
+  }
+  if (result.status !== 0) {
+    return "unavailable";
+  }
+
+  const versionLine = String(result.stdout || result.stderr || "").trim().split(/\r?\n/)[0];
+  return versionLine || "available";
+}
+
+async function buildLaunchSummary(botContextRef, configRef, bridgeProcessRef, cliStateRef, bootstrapInfoRef) {
+  configRef.current = await readConfig(botContextRef.current.botHome);
+  bridgeProcessRef.current = {
+    pid: (await getBot(botContextRef.current.botId)).runtimePid,
+  };
+  return formatLaunchSummary(
+    botContextRef.current,
+    configRef.current,
+    bridgeProcessRef.current,
+    cliStateRef.current,
+    bootstrapInfoRef.current,
+    getCodexCliStatus(),
+  );
+}
+
+async function showLaunchSummary(botContextRef, configRef, bridgeProcessRef, cliStateRef, bootstrapInfoRef) {
+  console.log(`${await buildLaunchSummary(botContextRef, configRef, bridgeProcessRef, cliStateRef, bootstrapInfoRef)}\n`);
+}
+
 function printHelpCard() {
   console.log(
     `${formatListCard("Commands", [
+      "/menu     open the CodexBridge menu",
       "/bots     open the interactive bot picker",
       "/new      create a new bot with prompts",
       "/connect  configure Telegram or Feishu",
+      "/memory   personalize memory files when setup is pending",
       "/me       show a compact status summary",
       "/status   same as /me, use /status full for full details",
       "/credits  show remaining credits for this bot",
@@ -844,18 +964,24 @@ async function showCliStatus(botContextRef, configRef, bridgeProcessRef, cliStat
   );
 }
 
-async function openMainMenu(rl, botContextRef, configRef, bridgeProcessRef, cliStateRef, bootstrapInfoRef, runningTurns) {
+async function openMainMenu(rl, botContextRef, configRef, bridgeProcessRef, cliStateRef, bootstrapInfoRef, runningTurns, options = {}) {
+  const clearScreen = options.clearScreen ?? isInteractiveTerminal();
+  const headerLines = [];
+  if (clearScreen) {
+    clearInteractiveScreen();
+    headerLines.push(await buildLaunchSummary(botContextRef, configRef, bridgeProcessRef, cliStateRef, bootstrapInfoRef));
+  }
   const items = [
-    { label: "Chat with the current bot", value: "chat" },
-    { label: "Switch bots", value: "bots" },
+    { label: "Start chat with current bot", value: "chat" },
+    { label: "Manage bots", value: "bots" },
     { label: "Create a new bot", value: "new-bot" },
     { label: "Connect Telegram or Feishu", value: "connect" },
-    { label: "Show current status", value: "status" },
   ];
   if (bootstrapInfoRef.current.bootstrapPending) {
-    items.push({ label: "Finish first-run setup", value: "bootstrap" });
+    items.push({ label: "Personalize memory", value: "bootstrap" });
   }
   items.push(
+    { label: "View diagnostics / status", value: "status" },
     { label: "Show help", value: "help" },
     { label: "Exit CodexBridge", value: "exit" },
   );
@@ -864,13 +990,13 @@ async function openMainMenu(rl, botContextRef, configRef, bridgeProcessRef, cliS
     rl,
     input,
     output,
-    title: "Quick Actions",
+    title: `CodexBridge Menu · ${botContextRef.current.botId}`,
     items,
+    headerLines,
     defaultIndex: 0,
     hintLines: [
-      "Use ↑/↓ and Enter. Esc returns to the prompt.",
+      "Choose what you want to do next. Esc returns to the prompt.",
     ],
-    fullscreen: true,
     fallbackPrompt: `Action [1-${items.length}, q=cancel]: `,
   });
 
@@ -879,11 +1005,14 @@ async function openMainMenu(rl, botContextRef, configRef, bridgeProcessRef, cliS
   }
 
   if (choice.value === "chat") {
-    console.log(`${formatMessageCard("Chat", ["Type any request and press Enter to run it on the current bot."])}\n`);
-    return true;
+    return "chat";
   }
   if (choice.value === "bots") {
-    await openBotPicker(rl, botContextRef, configRef, bridgeProcessRef, cliStateRef, bootstrapInfoRef, runningTurns);
+    const botAction = await openBotPicker(rl, botContextRef, configRef, bridgeProcessRef, cliStateRef, bootstrapInfoRef, runningTurns);
+    if (botAction === "changed") {
+      console.log(`Active bot: ${botContextRef.current.botId}\n`);
+      return await openMainMenu(rl, botContextRef, configRef, bridgeProcessRef, cliStateRef, bootstrapInfoRef, runningTurns);
+    }
     return true;
   }
   if (choice.value === "new-bot") {
@@ -908,13 +1037,13 @@ async function openMainMenu(rl, botContextRef, configRef, bridgeProcessRef, cliS
     return true;
   }
   if (choice.value === "exit") {
-    rl.close();
+    rl?.close();
     return "exit";
   }
   return true;
 }
 
-async function handleSlashCommand(line, rl, botContextRef, configRef, bridgeProcessRef, cliStateRef, bootstrapInfoRef, runningTurns) {
+async function handleSlashCommand(line, rl, botContextRef, configRef, bridgeProcessRef, cliStateRef, bootstrapInfoRef, runningTurns, renderer) {
   const [command, ...rest] = line.trim().split(/\s+/);
   const arg = rest.join(" ").trim();
   const cliState = cliStateRef.current;
@@ -923,8 +1052,12 @@ async function handleSlashCommand(line, rl, botContextRef, configRef, bridgeProc
     case "/help":
       printHelpCard();
       return true;
+    case "/menu":
+      return await openMainMenu(rl, botContextRef, configRef, bridgeProcessRef, cliStateRef, bootstrapInfoRef, runningTurns);
     case "/bots":
-      await openBotPicker(rl, botContextRef, configRef, bridgeProcessRef, cliStateRef, bootstrapInfoRef, runningTurns);
+      if (await openBotPicker(rl, botContextRef, configRef, bridgeProcessRef, cliStateRef, bootstrapInfoRef, runningTurns) === "changed") {
+        console.log(`Active bot: ${botContextRef.current.botId}\n`);
+      }
       return true;
     case "/new":
       try {
@@ -937,6 +1070,14 @@ async function handleSlashCommand(line, rl, botContextRef, configRef, bridgeProc
       await handleChannelCommand(rl, botContextRef, configRef.current, bridgeProcessRef);
       configRef.current = await readConfig(botContextRef.current.botHome);
       return true;
+    case "/memory": {
+      const wasPending = bootstrapInfoRef.current.bootstrapPending;
+      await runBootstrapFlow(rl, bootstrapInfoRef, botContextRef);
+      if (!wasPending) {
+        console.log(`${formatMessageCard("Memory", ["Memory personalization is already complete."])}\n`);
+      }
+      return true;
+    }
     case "/me":
       await showCliStatus(botContextRef, configRef, bridgeProcessRef, cliStateRef, bootstrapInfoRef, runningTurns, { mode: "summary" });
       return true;
@@ -1065,11 +1206,11 @@ async function handleSlashCommand(line, rl, botContextRef, configRef, bridgeProc
         return true;
       }
       const stopped = requestStop(turn);
-      console.log(
-        `${formatMessageCard("Stop", [
-          stopped ? `Stop requested for ${cliState.activeSessionLabel}.` : `Unable to stop ${cliState.activeSessionLabel}.`,
-        ])}\n`,
-      );
+      if (stopped) {
+        renderer.updateRunStatus(`Stopping ${cliState.activeSessionLabel}...`);
+      } else {
+        console.log(`${formatMessageCard("Stop", [`Unable to stop ${cliState.activeSessionLabel}.`])}\n`);
+      }
       return true;
     }
     case "/restart":
@@ -1108,37 +1249,52 @@ export async function startCli({ botId = DEFAULT_BOT_ID } = {}) {
   const cliStateRef = { current: initial.cliState };
   const bridgeProcessRef = { current: { pid: initial.runtimePid } };
   const runningTurns = new Map();
+  const renderer = createCliRenderer({ input, output });
+  let startupAction = null;
 
-  await showStartupBanner({
-    model: configRef.current.runtime?.model || "gpt-5.4",
-    workspacePath: getWorkspacePath(botContextRef.current.botHome),
-  });
-  clearCliViewport();
-  const rl = createInterface({ input, output });
-  const bootstrapAction = await maybeHandlePendingBootstrap(
-    rl,
-    botContextRef,
-    configRef,
-    bridgeProcessRef,
-    cliStateRef,
-    bootstrapInfoRef,
-    runningTurns,
-  );
-  if (bootstrapAction === "exit") {
-    return;
+  if (isInteractiveTerminal()) {
+    await showStartupBanner({
+      botId: botContextRef.current.botId,
+      model: configRef.current.runtime?.model || "gpt-5.4",
+    });
+    await showLaunchSummary(botContextRef, configRef, bridgeProcessRef, cliStateRef, bootstrapInfoRef);
+    startupAction = await openMainMenu(
+      null,
+      botContextRef,
+      configRef,
+      bridgeProcessRef,
+      cliStateRef,
+      bootstrapInfoRef,
+      runningTurns,
+      { clearScreen: false },
+    );
+    if (startupAction === "exit") {
+      renderer.dispose();
+      return;
+    }
   }
+
+  const rl = createInterface({ input, output });
+  let clearBeforePrompt = startupAction === "chat";
 
   while (true) {
     let line;
     try {
-      line = (await rl.question(formatBotPrompt(botContextRef.current.botId))).trim();
+      restoreInteractiveInput();
+      if (clearBeforePrompt) {
+        clearInteractiveScreen();
+        clearBeforePrompt = false;
+      }
+      line = await askCliInputLine(rl, botContextRef.current.botId);
     } catch (error) {
       if (isReadlineAbortError(error)) {
         rl.close();
+        renderer.dispose();
         output.write("\n");
         return;
       }
       if (error?.code === "ERR_USE_AFTER_CLOSE") {
+        renderer.dispose();
         return;
       }
       throw error;
@@ -1147,6 +1303,9 @@ export async function startCli({ botId = DEFAULT_BOT_ID } = {}) {
       const action = await openMainMenu(rl, botContextRef, configRef, bridgeProcessRef, cliStateRef, bootstrapInfoRef, runningTurns);
       if (action === "exit") {
         return;
+      }
+      if (action === "chat") {
+        clearBeforePrompt = true;
       }
       continue;
     }
@@ -1159,14 +1318,20 @@ export async function startCli({ botId = DEFAULT_BOT_ID } = {}) {
       cliStateRef,
       bootstrapInfoRef,
       runningTurns,
+      renderer,
     );
     if (handled === "exit") {
+      renderer.dispose();
       return;
+    }
+    if (handled === "chat") {
+      clearBeforePrompt = true;
+      continue;
     }
     if (handled) {
       continue;
     }
     configRef.current = await readConfig(botContextRef.current.botHome);
-    await startCliMessage(line, rl, botContextRef, cliStateRef.current, configRef.current, runningTurns);
+    await startCliMessage(line, rl, botContextRef, cliStateRef.current, configRef.current, runningTurns, renderer);
   }
 }

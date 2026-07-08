@@ -1,11 +1,11 @@
-import { emitKeypressEvents } from "node:readline";
+import { isCancel, select } from "@clack/prompts";
 
-import { countRenderedRows, formatListCard, renderCard } from "./ui/banner.mjs";
+import { renderCard } from "./ui/banner.mjs";
 
 const ANSI = {
   reset: "\x1b[0m",
   bold: "\x1b[1m",
-  brightCyan: "\x1b[96m",
+  primaryBlue: "\x1b[38;5;33m",
   dim: "\x1b[2m",
 };
 
@@ -30,7 +30,9 @@ function renderShortcutLine(shortcuts) {
 }
 
 export function renderSelectionCard(title, items, selectedIndex, options = {}) {
-  const lines = [colorize(title, ANSI.bold + ANSI.brightCyan), ""];
+  const headerLines = Array.isArray(options.headerLines) ? options.headerLines.filter(Boolean) : [];
+  const numbered = Boolean(options.numbered);
+  const lines = [colorize(title, ANSI.bold + ANSI.primaryBlue), ""];
   const bodyLines = Array.isArray(options.bodyLines) ? options.bodyLines.filter(Boolean) : [];
   for (const bodyLine of bodyLines) {
     lines.push(bodyLine);
@@ -39,7 +41,9 @@ export function renderSelectionCard(title, items, selectedIndex, options = {}) {
     lines.push("");
   }
   for (let index = 0; index < items.length; index += 1) {
-    const prefix = index === selectedIndex ? colorize("›", ANSI.brightCyan) : " ";
+    const prefix = numbered
+      ? `${index + 1}.`
+      : index === selectedIndex ? colorize("›", ANSI.primaryBlue) : " ";
     lines.push(`${prefix} ${items[index].label}`);
   }
   const shortcuts = Array.isArray(options.shortcuts) ? options.shortcuts : [];
@@ -54,7 +58,8 @@ export function renderSelectionCard(title, items, selectedIndex, options = {}) {
   for (const hint of hintLines) {
     lines.push(colorize(hint, ANSI.dim));
   }
-  return renderCard(lines).join("\n");
+  const card = renderCard(lines);
+  return [...headerLines, ...(headerLines.length ? [""] : []), ...card].join("\n");
 }
 
 export function parseTextMenuResponse(answer, items, options = {}) {
@@ -98,44 +103,43 @@ export function parseTextMenuResponse(answer, items, options = {}) {
   return null;
 }
 
-function clearPreviousFrame(output, lineCount) {
-  if (!output?.isTTY || lineCount <= 0) {
-    return;
-  }
-  output.write(`\x1b[${lineCount}F`);
-  output.write("\x1b[0J");
-}
-
-function clearViewport(output) {
-  if (!output?.isTTY) {
-    return;
-  }
-  output.write("\x1b[2J\x1b[H");
-}
-
-function clearPrimaryPromptLine(output) {
-  if (!output?.isTTY) {
-    return;
-  }
-  output.write("\x1b[1F\x1b[0J");
-}
-
-function enterAlternateScreen(output) {
-  if (!output?.isTTY) {
-    return;
-  }
-  output.write("\x1b[?1049h");
-}
-
-function exitAlternateScreen(output) {
-  if (!output?.isTTY) {
-    return;
-  }
-  output.write("\x1b[?1049l");
-}
-
 function isReadlineAbortError(error) {
   return error?.code === "ABORT_ERR" || error?.name === "AbortError";
+}
+
+function buildClackOptions(items, shortcuts) {
+  const options = items.map((item, index) => ({
+    value: `item:${index}`,
+    label: item.label,
+  }));
+  for (let index = 0; index < shortcuts.length; index += 1) {
+    const shortcut = shortcuts[index];
+    options.push({
+      value: `shortcut:${index}`,
+      label: shortcut.label,
+      hint: shortcut.key === "space" ? "space" : shortcut.key,
+    });
+  }
+  return options;
+}
+
+function writeHeaderLines(output, headerLines) {
+  if (!headerLines.length) {
+    return;
+  }
+  output.write(`${headerLines.join("\n")}\n\n`);
+}
+
+function restoreInput(input) {
+  if (!input?.isTTY) {
+    return;
+  }
+  if (typeof input.setRawMode === "function") {
+    input.setRawMode(false);
+  }
+  if (typeof input.resume === "function") {
+    input.resume();
+  }
 }
 
 export async function promptSelect({
@@ -144,12 +148,11 @@ export async function promptSelect({
   output,
   title,
   items,
+  headerLines = [],
   bodyLines = [],
   hintLines = [],
   shortcuts = [],
   defaultIndex = 0,
-  clearOnExit = true,
-  fullscreen = false,
   fallbackPrompt = "Choose an option: ",
 } = {}) {
   if (!Array.isArray(items) || !items.length) {
@@ -157,25 +160,63 @@ export async function promptSelect({
   }
 
   const safeDefaultIndex = Math.max(0, Math.min(defaultIndex, items.length - 1));
+  const safeShortcuts = Array.isArray(shortcuts) ? shortcuts : [];
+  const safeBodyLines = Array.isArray(bodyLines) ? bodyLines.filter(Boolean) : [];
+  const safeHintLines = Array.isArray(hintLines) ? hintLines.filter(Boolean) : [];
+  const safeHeaderLines = Array.isArray(headerLines) ? headerLines.filter(Boolean) : [];
+
+  if (input?.isTTY && output?.isTTY) {
+    writeHeaderLines(output, safeHeaderLines);
+
+    try {
+      const selected = await select({
+        message: title,
+        options: buildClackOptions(items, safeShortcuts),
+        initialValue: `item:${safeDefaultIndex}`,
+        input,
+        output,
+      });
+
+      if (isCancel(selected)) {
+        return { action: "cancel", index: safeDefaultIndex, value: null };
+      }
+
+      const [kind, rawIndex] = String(selected).split(":");
+      const selectedIndex = Number.parseInt(rawIndex, 10);
+      if (kind === "shortcut" && Number.isInteger(selectedIndex) && safeShortcuts[selectedIndex]) {
+        const shortcut = safeShortcuts[selectedIndex];
+        return {
+          action: "shortcut",
+          key: shortcut.key,
+          shortcut: shortcut.action,
+          index: safeDefaultIndex,
+          value: items[safeDefaultIndex]?.value,
+        };
+      }
+
+      if (kind === "item" && Number.isInteger(selectedIndex) && items[selectedIndex]) {
+        return {
+          action: "select",
+          index: selectedIndex,
+          value: items[selectedIndex]?.value,
+        };
+      }
+    } finally {
+      restoreInput(input);
+    }
+
+    return { action: "cancel", index: safeDefaultIndex, value: null };
+  }
 
   if (!input?.isTTY || !output?.isTTY || typeof input.setRawMode !== "function") {
-    output.write(`${formatListCard(title, items.map((item, index) => `${index + 1}. ${item.label}`))}\n\n`);
-    for (const bodyLine of bodyLines) {
-      output.write(`${bodyLine}\n`);
-    }
-    if (bodyLines.length) {
-      output.write("\n");
-    }
-    const shortcutLine = renderShortcutLine(shortcuts);
-    if (shortcutLine) {
-      output.write(`${shortcutLine}\n`);
-    }
-    for (const hint of hintLines) {
-      output.write(`${hint}\n`);
-    }
-    if (shortcutLine || hintLines.length) {
-      output.write("\n");
-    }
+    const frame = renderSelectionCard(title, items, safeDefaultIndex, {
+      headerLines: safeHeaderLines,
+      bodyLines: safeBodyLines,
+      hintLines: safeHintLines,
+      shortcuts: safeShortcuts,
+      numbered: true,
+    });
+    output.write(`${frame}\n\n`);
     while (true) {
       let answer;
       try {
@@ -187,7 +228,7 @@ export async function promptSelect({
         throw error;
       }
       const parsed = parseTextMenuResponse(answer, items, {
-        shortcuts,
+        shortcuts: safeShortcuts,
         defaultIndex: safeDefaultIndex,
       });
       if (parsed) {
@@ -196,124 +237,4 @@ export async function promptSelect({
       output.write("Unknown selection. Try a number, shortcut, or 'q' to cancel.\n");
     }
   }
-
-  rl.pause();
-  emitKeypressEvents(input);
-  input.resume();
-
-  let selectedIndex = safeDefaultIndex;
-  let renderedLineCount = 0;
-  const restoreRawMode = Boolean(input.isRaw);
-  let usingAlternateScreen = false;
-
-  const render = () => {
-    if (fullscreen) {
-      clearViewport(output);
-    } else {
-      clearPreviousFrame(output, renderedLineCount);
-    }
-    const frame = renderSelectionCard(title, items, selectedIndex, {
-      bodyLines,
-      hintLines,
-      shortcuts,
-    });
-    output.write(`${frame}\n`);
-    renderedLineCount = countRenderedRows(frame.split("\n"), output.columns || 80);
-  };
-
-  const cleanup = () => {
-    input.removeListener("keypress", onKeypress);
-    if (!restoreRawMode) {
-      input.setRawMode(false);
-    }
-    if (usingAlternateScreen) {
-      exitAlternateScreen(output);
-      usingAlternateScreen = false;
-    }
-    output.write("\x1b[?25h");
-  };
-
-  const finish = (resolve, result) => {
-    if (clearOnExit) {
-      if (fullscreen) {
-        if (!usingAlternateScreen) {
-          clearViewport(output);
-        }
-      } else {
-        clearPreviousFrame(output, renderedLineCount);
-      }
-      renderedLineCount = 0;
-    }
-    cleanup();
-    resolve(result);
-  };
-
-  const shortcutMap = new Map(shortcuts.map((shortcut) => [normalizeShortcutKey(shortcut.key), shortcut]));
-
-  const onKeypress = (str, key = {}) => {
-    if (key.ctrl && key.name === "c") {
-      finish(resolvePromise, { action: "cancel", index: selectedIndex, value: null });
-      return;
-    }
-    if (key.name === "up") {
-      selectedIndex = selectedIndex <= 0 ? items.length - 1 : selectedIndex - 1;
-      render();
-      return;
-    }
-    if (key.name === "down") {
-      selectedIndex = selectedIndex >= items.length - 1 ? 0 : selectedIndex + 1;
-      render();
-      return;
-    }
-    if (key.name === "return" || key.name === "enter") {
-      finish(resolvePromise, {
-        action: "select",
-        index: selectedIndex,
-        value: items[selectedIndex]?.value,
-      });
-      return;
-    }
-    if (key.name === "escape") {
-      finish(resolvePromise, { action: "cancel", index: selectedIndex, value: null });
-      return;
-    }
-
-    const normalizedKey = normalizeShortcutKey(key.name || str);
-    if (shortcutMap.has(normalizedKey)) {
-      const shortcut = shortcutMap.get(normalizedKey);
-      finish(resolvePromise, {
-        action: "shortcut",
-        key: shortcut.key,
-        shortcut: shortcut.action,
-        index: selectedIndex,
-        value: items[selectedIndex]?.value,
-      });
-      return;
-    }
-
-    const numeric = Number.parseInt(str, 10);
-    if (Number.isInteger(numeric) && numeric >= 1 && numeric <= items.length) {
-      selectedIndex = numeric - 1;
-      render();
-    }
-  };
-
-  output.write("\x1b[?25l");
-  if (!restoreRawMode) {
-    input.setRawMode(true);
-  }
-  if (fullscreen) {
-    clearPrimaryPromptLine(output);
-    enterAlternateScreen(output);
-    usingAlternateScreen = true;
-  }
-
-  let resolvePromise;
-  const promise = new Promise((resolve) => {
-    resolvePromise = resolve;
-    input.on("keypress", onKeypress);
-    render();
-  });
-
-  return await promise;
 }
