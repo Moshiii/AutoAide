@@ -249,6 +249,27 @@ export async function adjustPaidCredits({ userId, amount, reason = "manual_adjus
   });
 }
 
+export async function setDailyFreeLimit({ userId, dailyFreeLimit, botHome = resolveBotHome() } = {}) {
+  const normalizedLimit = Number(dailyFreeLimit);
+  if (!Number.isFinite(normalizedLimit) || !Number.isInteger(normalizedLimit) || normalizedLimit < 0) {
+    throw new Error("Daily free limit must be a non-negative whole number.");
+  }
+  return await withCreditsLock(botHome, async (state, statePath) => {
+    const account = ensureAccount(state, userId);
+    const dailyFreeLimitBefore = account.dailyFreeLimit;
+    account.dailyFreeLimit = normalizedLimit;
+    account.updatedAt = nowIso();
+    await writeCreditsState(statePath, state);
+    return {
+      ok: true,
+      dailyFreeLimitBefore,
+      dailyFreeLimitAfter: account.dailyFreeLimit,
+      account: { ...account },
+      defaults: { ...state.defaults },
+    };
+  });
+}
+
 export async function refundPaidCredits({
   userId,
   amount,

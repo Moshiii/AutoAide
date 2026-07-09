@@ -45,7 +45,8 @@ test("control plane page escapes dynamic fields before assigning generated HTML"
   const html = renderHtmlPage();
 
   assert.match(html, /function escapeHtml/);
-  assert.match(html, /escapeHtml\(bot\.name \|\| bot\.id\)/);
+  assert.match(html, /function botLabel/);
+  assert.match(html, /escapeHtml\(botLabel\(bot\)\)/);
   assert.match(html, /statusTone\(bot\.status\)/);
   assert.match(html, /escapeHtml\(run\.id \|\| "-"\)/);
   assert.match(html, /escapeHtml\(user\.displayName \|\| user\.id\)/);

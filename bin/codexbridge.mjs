@@ -40,6 +40,16 @@ import {
   runWebRuntime,
   stopWebRuntime,
 } from "../src/web-runtime.mjs";
+import {
+  adjustCredits as adjustUserCredits,
+  grantCredits as grantUserCredits,
+  listAdminAudit as listUserAdminAudit,
+  listOperationsUsers,
+  listRuns as listUserRuns,
+  listUsage as listUserUsage,
+  updatePrivateEnabled,
+  updateUserStatus,
+} from "../src/control-plane-operations-service.mjs";
 
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -62,6 +72,22 @@ function parseFlags(values) {
   return flags;
 }
 
+function parsePositionals(values) {
+  const positionals = [];
+  for (let index = 0; index < values.length; index += 1) {
+    const entry = values[index];
+    if (entry.startsWith("--")) {
+      const next = values[index + 1];
+      if (next && !next.startsWith("--")) {
+        index += 1;
+      }
+      continue;
+    }
+    positionals.push(entry);
+  }
+  return positionals;
+}
+
 function printJson(value) {
   console.log(JSON.stringify(value, null, 2));
 }
@@ -79,6 +105,7 @@ function printUsage() {
     "  codexbridge tui-turn <bot-id>",
     "  codexbridge bot <create|show|use|current|run|start|stop|restart|enable|disable|delete|logs|config|set-config|health> ...",
     "  codexbridge bots",
+    "  codexbridge users <list|show|grant|adjust|unlock|lock|ban|unban|status|usage|runs|audit> ... [--bot <id>]",
     "  codexbridge skills [list|install <zip-or-path>]",
     "",
     "First steps:",
@@ -143,6 +170,26 @@ function printBotUsage() {
   );
 }
 
+function printUsersUsage() {
+  console.log([
+    "Usage:",
+    "  codexbridge users list [--bot <id>]",
+    "  codexbridge users show <user-id> [--bot <id>]",
+    "  codexbridge users grant <user-id> <amount> [--bot <id>]",
+    "  codexbridge users adjust <user-id> <amount> [--reason <reason>] [--bot <id>]",
+    "  codexbridge users unlock <user-id> [--bot <id>]",
+    "  codexbridge users lock <user-id> [--bot <id>]",
+    "  codexbridge users ban <user-id> [--bot <id>]",
+    "  codexbridge users unban <user-id> [--bot <id>]",
+    "  codexbridge users status <user-id> <free|paid|admin|banned> [--bot <id>]",
+    "  codexbridge users usage [user-id] [--limit <n>] [--bot <id>]",
+    "  codexbridge users runs [user-id] [--limit <n>] [--bot <id>]",
+    "  codexbridge users audit [user-id] [--limit <n>] [--bot <id>]",
+    "",
+    "Users are created automatically when they message a connected channel. There is no delete command; use ban or lock instead.",
+  ].join("\n"));
+}
+
 function isPlainObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -161,6 +208,32 @@ function deepMergeConfig(base, patch) {
 
 function isReadlineAbortError(error) {
   return error?.code === "ABORT_ERR" || error?.name === "AbortError";
+}
+
+async function resolveUsersBotHome(botId) {
+  const resolvedBotId = botId || await readActiveBotId();
+  const bot = await getBot(resolvedBotId);
+  return {
+    botId: bot.id,
+    botHome: bot.homePath,
+  };
+}
+
+function requireArg(value, usage) {
+  if (!value) {
+    console.error(usage);
+    process.exit(1);
+  }
+  return value;
+}
+
+function requireUserStatus(value) {
+  const status = String(value || "").trim().toLowerCase();
+  if (!["free", "paid", "admin", "banned"].includes(status)) {
+    console.error("Status must be one of: free, paid, admin, banned");
+    process.exit(1);
+  }
+  return status;
 }
 
 async function main() {
@@ -237,6 +310,93 @@ async function main() {
   if (command === "bots") {
     printJson(await listBots());
     process.exit(0);
+  }
+
+  if (command === "users") {
+    const flags = parseFlags(rest);
+    const args = parsePositionals(rest);
+    if (wantsHelp(subcommand) || flags.help || flags.h) {
+      printUsersUsage();
+      process.exit(0);
+    }
+    const { botHome } = await resolveUsersBotHome(flags.bot);
+    switch (subcommand) {
+      case "list":
+      case undefined:
+        printJson(await listOperationsUsers(botHome));
+        process.exit(0);
+      case "show": {
+        const userId = requireArg(args[0], "Usage: codexbridge users show <user-id> [--bot <id>]");
+        const user = (await listOperationsUsers(botHome)).find((entry) => entry.id === userId);
+        if (!user) {
+          throw new Error(`Unknown user: ${userId}`);
+        }
+        printJson(user);
+        process.exit(0);
+      }
+      case "grant": {
+        const userId = requireArg(args[0], "Usage: codexbridge users grant <user-id> <amount> [--bot <id>]");
+        const amount = requireArg(args[1], "Usage: codexbridge users grant <user-id> <amount> [--bot <id>]");
+        printJson(await grantUserCredits(botHome, userId, amount));
+        process.exit(0);
+      }
+      case "adjust": {
+        const userId = requireArg(args[0], "Usage: codexbridge users adjust <user-id> <amount> [--reason <reason>] [--bot <id>]");
+        const amount = requireArg(args[1], "Usage: codexbridge users adjust <user-id> <amount> [--reason <reason>] [--bot <id>]");
+        printJson(await adjustUserCredits(botHome, userId, amount, flags.reason || "manual_adjustment"));
+        process.exit(0);
+      }
+      case "unlock": {
+        const userId = requireArg(args[0], "Usage: codexbridge users unlock <user-id> [--bot <id>]");
+        printJson(await updatePrivateEnabled(botHome, userId, true));
+        process.exit(0);
+      }
+      case "lock": {
+        const userId = requireArg(args[0], "Usage: codexbridge users lock <user-id> [--bot <id>]");
+        printJson(await updatePrivateEnabled(botHome, userId, false));
+        process.exit(0);
+      }
+      case "ban": {
+        const userId = requireArg(args[0], "Usage: codexbridge users ban <user-id> [--bot <id>]");
+        printJson(await updateUserStatus(botHome, userId, "banned"));
+        process.exit(0);
+      }
+      case "unban": {
+        const userId = requireArg(args[0], "Usage: codexbridge users unban <user-id> [--bot <id>]");
+        printJson(await updateUserStatus(botHome, userId, "free"));
+        process.exit(0);
+      }
+      case "status": {
+        const userId = requireArg(args[0], "Usage: codexbridge users status <user-id> <free|paid|admin|banned> [--bot <id>]");
+        const status = requireUserStatus(requireArg(args[1], "Usage: codexbridge users status <user-id> <free|paid|admin|banned> [--bot <id>]"));
+        printJson(await updateUserStatus(botHome, userId, status));
+        process.exit(0);
+      }
+      case "usage": {
+        printJson(await listUserUsage(botHome, {
+          userId: args[0] || null,
+          limit: flags.limit,
+        }));
+        process.exit(0);
+      }
+      case "runs": {
+        printJson(await listUserRuns(botHome, {
+          userId: args[0] || null,
+          limit: flags.limit,
+        }));
+        process.exit(0);
+      }
+      case "audit": {
+        printJson(await listUserAdminAudit(botHome, {
+          userId: args[0] || null,
+          limit: flags.limit,
+        }));
+        process.exit(0);
+      }
+      default:
+        printUsersUsage();
+        process.exit(1);
+    }
   }
 
   if (command === "bot") {

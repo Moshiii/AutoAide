@@ -415,7 +415,7 @@ impl App {
                 self.screen = Screen::Shell;
                 self.push_item(TranscriptItem::ToolDone {
                     action: "Switched bot".to_string(),
-                    detail: bot.id,
+                    detail: bot_display_name(&bot),
                 });
             }
             Err(error) => {
@@ -566,6 +566,7 @@ fn render_shell_flow(frame: &mut Frame, app: &App, area: Rect) {
 
 fn status_lines(app: &App, width: usize) -> Vec<Line<'static>> {
     let card_width = width.min(78).max(width.min(40));
+    let bot_label = clip_middle(&bot_display_name(&app.current), 22);
     let workspace = clip_middle(
         &short_workspace(&app.current),
         card_width.saturating_sub(13),
@@ -579,10 +580,7 @@ fn status_lines(app: &App, width: usize) -> Vec<Line<'static>> {
         ),
         box_text("", card_width, Style::default()),
         box_text(
-            &format!(
-                "{:<9}{:<16}{:<9}{}",
-                "bot:", app.current.id, "model:", "gpt-5.4"
-            ),
+            &format!("{:<9}{:<24}{:<9}{}", "bot:", bot_label, "model:", "gpt-5.4"),
             card_width,
             Style::default().fg(Color::Gray),
         ),
@@ -650,9 +648,8 @@ fn render_bots_flow(frame: &mut Frame, app: &App, area: Rect) {
                 ""
             };
             ListItem::new(format!(
-                "{:<16} {:<18} {:<8} {:<9} {}",
-                bot.id,
-                bot.name.as_deref().unwrap_or("-"),
+                "{:<28} {:<8} {:<9} {}",
+                clip_middle(&bot_display_name(bot), 28),
                 if bot.enabled.unwrap_or(false) {
                     "enabled"
                 } else {
@@ -902,6 +899,16 @@ fn value(text: &str) -> Span<'static> {
 
 fn muted(text: &str) -> Span<'static> {
     Span::styled(text.to_string(), Style::default().fg(Color::Gray))
+}
+
+fn bot_display_name(bot: &Bot) -> String {
+    let name = bot
+        .name
+        .as_deref()
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .unwrap_or(&bot.id);
+    format!("{name} ({})", bot.id)
 }
 
 fn short_workspace(bot: &Bot) -> String {

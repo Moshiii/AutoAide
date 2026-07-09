@@ -10,7 +10,7 @@ function stripAnsi(value) {
 test("cli formatters render Telegram entities and sessions", async () => {
   const formatters = await importFresh("../../src/cli-formatters.mjs");
 
-  assert.equal(formatters.formatBotPrompt("alpha"), "codexbridge:alpha> ");
+  assert.equal(formatters.formatBotPrompt({ botName: "Alpha", botId: "alpha" }), "codexbridge:Alpha (alpha)> ");
   assert.equal(formatters.formatTelegramEntity("1", { username: "@alice" }), "@alice (1)");
   assert.equal(formatters.formatTelegramEntity("2", { title: "Group" }), "Group (2)");
   assert.equal(formatters.formatTelegramEntityList(["1"], { users: { "1": { label: "Alice" } } }, "user"), "Alice (1)");
@@ -56,7 +56,7 @@ test("cli formatters render status cards and CLI results", async () => {
         },
       },
     };
-    const botContext = { botId: "alpha", botHome: `${homePath}/bots/alpha` };
+    const botContext = { botId: "alpha", botName: "Alpha", botHome: `${homePath}/bots/alpha` };
     const cliState = { activeSessionLabel: "main" };
     const bootstrapInfo = { bootstrapPending: false };
     const creditsInfo = { account: { userId: "cli:owner", balance: 7 } };
@@ -66,8 +66,10 @@ test("cli formatters render status cards and CLI results", async () => {
     const status = stripAnsi(formatters.formatCliStatus(botContext, config, { pid: 123 }, cliState, bootstrapInfo, creditsInfo));
 
     assert.match(overview, /Current Bot/);
+    assert.match(overview, /bot:\s+Alpha \(alpha\)/);
     assert.match(overview, /runtime:\s+online/);
     assert.match(launch, /CodexBridge/);
+    assert.match(launch, /bot\s+:\s+Alpha \(alpha\)/);
     assert.match(launch, /model\s+:\s+gpt-5\.4-mini/);
     assert.match(launch, /workspace:/);
     assert.match(launch, /codex cli:\s+codex 1\.2\.3/);

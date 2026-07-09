@@ -23,6 +23,16 @@ import { createBot, ensureDefaultBot, getBot, listBots, restartBot, setActiveBot
 import { promptSelect } from "./interactive-menu.mjs";
 import { getUserCredits, resolveCliCreditsUserId } from "./user-credits.mjs";
 import {
+  adjustCredits as adjustUserCredits,
+  grantCredits as grantUserCredits,
+  listAdminAudit as listUserAdminAudit,
+  listOperationsUsers,
+  listUsage as listUserUsage,
+  updateDailyFreeLimit as updateUserDailyFreeLimit,
+  updatePrivateEnabled,
+  updateUserStatus,
+} from "./control-plane-operations-service.mjs";
+import {
   formatSkillInstallResult,
   formatSkillsList,
   formatSkillsOverview,
@@ -32,12 +42,14 @@ import {
 import { composeStartupBanner, formatKeyValueCard, formatListCard, formatMessageCard, showStartupBanner } from "./ui/banner.mjs";
 import {
   formatCliStatus,
+  formatBotPrompt,
   formatLaunchSummary,
   formatStatusOverview,
   getRunningTurn,
   getTelegramConfigView,
 } from "./cli-formatters.mjs";
 import { requestChildStop } from "./pid-files.mjs";
+import { formatBotDisplayName } from "./bot-labels.mjs";
 
 function isReadlineAbortError(error) {
   return error?.code === "ABORT_ERR" || error?.name === "AbortError" || error?.message === "readline was closed";
@@ -151,8 +163,8 @@ async function pauseBeforeMenu(rl) {
   await waitForCliEnter(rl, "Return to menu");
 }
 
-async function askCliInputLine(rl, botId) {
-  return (await rl.question(`codexbridge:${botId}> `)).trim();
+async function askCliInputLine(rl, botContext) {
+  return (await rl.question(formatBotPrompt(botContext))).trim();
 }
 
 function runCodexBridgeTui() {
@@ -581,6 +593,7 @@ async function loadCliBotContext(botId) {
   }
   return {
     botId: bot.id,
+    botName: bot.name || config.name || bot.id,
     botHome,
     bot,
     config: await readConfig(botHome),
@@ -594,6 +607,7 @@ async function switchCliBot(botId, botContextRef, configRef, bridgeProcessRef, c
   const next = await loadCliBotContext(botId);
   botContextRef.current = {
     botId: next.botId,
+    botName: next.botName,
     botHome: next.botHome,
   };
   configRef.current = next.config;
@@ -613,7 +627,7 @@ function formatBotPickerLabel(bot, currentBotId) {
     bot.runtimePid ? "online" : "offline",
     bot.channel || "telegram",
   ].filter(Boolean).join(", ");
-  return `${bot.id.padEnd(14)} ${bot.name} [${tags}]`;
+  return `${formatBotDisplayName(bot).padEnd(28)} [${tags}]`;
 }
 
 async function promptForBotBasics(rl, defaults = {}) {
@@ -657,8 +671,7 @@ async function createBotInteractive(rl, botContextRef) {
   });
   console.log(
     `${formatKeyValueCard("Bot Created", [
-      ["id", created.id],
-      ["name", basics.name],
+      ["bot", formatBotDisplayName(created)],
       ["status", "disabled until configured"],
       ["next step", "Open /bots and press Enter to switch, or use /connect to configure a channel"],
     ])}\n`,
@@ -735,6 +748,219 @@ async function resolveRuntimeErrorMessage(error, botId) {
     // Keep the original runtime error when bot state cannot be read.
   }
   return message;
+}
+
+function formatUserDisplayName(user) {
+  const id = String(user?.id || "").trim();
+  const name = String(user?.displayName || id || "").trim();
+  return id ? `${name || id} (${id})` : name || "unknown";
+}
+
+function formatUserPickerLabel(user) {
+  const credits = user.credits || {};
+  const tags = [
+    user.status || "free",
+    user.privateEnabled ? "private unlocked" : "private locked",
+    `${credits.paidCredits ?? 0} credits`,
+    `daily ${credits.dailyFreeUsed ?? 0}/${credits.dailyFreeLimit ?? 0}`,
+  ];
+  return `${formatUserDisplayName(user).padEnd(38)} [${tags.join(", ")}]`;
+}
+
+function formatUserSummaryRows(user) {
+  const credits = user.credits || {};
+  return [
+    ["user", formatUserDisplayName(user)],
+    ["channel", user.channel || "-"],
+    ["status", user.status || "free"],
+    ["private access", user.privateEnabled ? "unlocked" : "locked"],
+    ["paid credits", String(credits.paidCredits ?? 0)],
+    ["daily free", `${credits.dailyFreeUsed ?? 0}/${credits.dailyFreeLimit ?? 0}`],
+    ["total consumed", String(credits.totalConsumed ?? 0)],
+  ];
+}
+
+async function askCliInteger(rl, message, { defaultValue = "", min = null, nonZero = false } = {}) {
+  while (true) {
+    const answer = await askCliText(rl, message, {
+      defaultValue: defaultValue === "" ? "" : String(defaultValue),
+      required: defaultValue === "",
+    });
+    const value = Number(answer);
+    if (Number.isInteger(value) && (min == null || value >= min) && (!nonZero || value !== 0)) {
+      return value;
+    }
+    console.log(`${formatMessageCard("Invalid Value", [
+      min == null ? "Enter a whole number." : `Enter a whole number greater than or equal to ${min}.`,
+      nonZero ? "The value cannot be 0." : "",
+    ].filter(Boolean))}\n`);
+    if (!isInteractiveTerminal()) {
+      throw new Error("Invalid numeric input.");
+    }
+  }
+}
+
+async function getOperationsUser(botHome, userId) {
+  return (await listOperationsUsers(botHome)).find((user) => user.id === userId) || null;
+}
+
+function formatUsageEventLine(event) {
+  return `- ${event.createdAt || "-"} ${event.eventType || "-"} ${event.amount ?? 0} ${event.reason || ""}`.trim();
+}
+
+function formatAdminAuditLine(event) {
+  const detail = [
+    event.amount != null ? `amount=${event.amount}` : "",
+    event.status ? `status=${event.status}` : "",
+    event.privateEnabled != null ? `private=${event.privateEnabled}` : "",
+    event.reason || "",
+  ].filter(Boolean).join(" ");
+  return `- ${event.createdAt || "-"} ${event.action || "-"} ${detail}`.trim();
+}
+
+async function showUserOperationResult(rl, title, botHome, userId, extraRows = []) {
+  const user = await getOperationsUser(botHome, userId);
+  console.log(`${formatKeyValueCard(title, [
+    ...formatUserSummaryRows(user || { id: userId }),
+    ...extraRows,
+  ])}\n`);
+  await pauseBeforeMenu(rl);
+}
+
+async function openUserActionMenu(rl, botContextRef, selectedUser) {
+  const botHome = botContextRef.current.botHome;
+  const latestUser = await getOperationsUser(botHome, selectedUser.id);
+  const user = latestUser || selectedUser;
+  const items = [
+    { label: "Add credits", value: "add-credits" },
+    { label: "Adjust credits", value: "adjust-credits" },
+    { label: "Adjust dailyFreeLimit", value: "adjust-daily-free-limit" },
+    { label: "Unlock private", value: "unlock-private" },
+    { label: "Lock private", value: "lock-private" },
+    { label: "Ban user", value: "ban-user" },
+    { label: "Unban user", value: "unban-user" },
+    { label: "View usage", value: "view-usage" },
+    { label: "View audit log", value: "view-audit-log" },
+  ];
+  const choice = await promptSelect({
+    rl,
+    input,
+    output,
+    title: `User · ${formatUserDisplayName(user)}`,
+    items,
+    bodyLines: formatUserSummaryRows(user).map(([label, value]) => `${label}: ${value}`),
+    headerLines: isInteractiveTerminal() ? composeStartupBanner() : [],
+    defaultIndex: 0,
+    fallbackPrompt: `User action [1-${items.length}, q=cancel]: `,
+  });
+
+  if (choice.action === "cancel") {
+    return true;
+  }
+
+  try {
+    if (choice.value === "add-credits") {
+      const amount = await askCliInteger(rl, "Credits to add", { min: 1 });
+      const result = await grantUserCredits(botHome, user.id, amount);
+      await showUserOperationResult(rl, "Credits Added", botHome, user.id, [
+        ["added", String(result.credits.granted)],
+        ["balance after", String(result.credits.balanceAfter)],
+      ]);
+      return true;
+    }
+    if (choice.value === "adjust-credits") {
+      const amount = await askCliInteger(rl, "Credit adjustment (+/-)", { nonZero: true });
+      const result = await adjustUserCredits(botHome, user.id, amount, "cli_user_management");
+      await showUserOperationResult(rl, "Credits Adjusted", botHome, user.id, [
+        ["adjusted", String(result.credits.adjusted)],
+        ["balance after", String(result.credits.balanceAfter)],
+      ]);
+      return true;
+    }
+    if (choice.value === "adjust-daily-free-limit") {
+      const amount = await askCliInteger(rl, "Daily free limit", {
+        defaultValue: user.credits?.dailyFreeLimit ?? 0,
+        min: 0,
+      });
+      const result = await updateUserDailyFreeLimit(botHome, user.id, amount);
+      await showUserOperationResult(rl, "Daily Free Limit Updated", botHome, user.id, [
+        ["previous limit", String(result.credits.dailyFreeLimitBefore)],
+        ["new limit", String(result.credits.dailyFreeLimitAfter)],
+      ]);
+      return true;
+    }
+    if (choice.value === "unlock-private" || choice.value === "lock-private") {
+      const privateEnabled = choice.value === "unlock-private";
+      await updatePrivateEnabled(botHome, user.id, privateEnabled);
+      await showUserOperationResult(rl, privateEnabled ? "Private Unlocked" : "Private Locked", botHome, user.id);
+      return true;
+    }
+    if (choice.value === "ban-user" || choice.value === "unban-user") {
+      const status = choice.value === "ban-user" ? "banned" : "free";
+      await updateUserStatus(botHome, user.id, status);
+      await showUserOperationResult(rl, status === "banned" ? "User Banned" : "User Unbanned", botHome, user.id);
+      return true;
+    }
+    if (choice.value === "view-usage") {
+      const events = await listUserUsage(botHome, { userId: user.id, limit: 20 });
+      console.log(`${events.length
+        ? formatListCard(`Usage · ${formatUserDisplayName(user)}`, events.map(formatUsageEventLine))
+        : formatMessageCard("Usage", [`No usage events for ${formatUserDisplayName(user)}.`])}\n`);
+      await pauseBeforeMenu(rl);
+      return true;
+    }
+    if (choice.value === "view-audit-log") {
+      const events = await listUserAdminAudit(botHome, { userId: user.id, limit: 20 });
+      console.log(`${events.length
+        ? formatListCard(`Audit Log · ${formatUserDisplayName(user)}`, events.map(formatAdminAuditLine))
+        : formatMessageCard("Audit Log", [`No audit events for ${formatUserDisplayName(user)}.`])}\n`);
+      await pauseBeforeMenu(rl);
+      return true;
+    }
+  } catch (error) {
+    console.log(`${formatMessageCard("User Action Failed", [error.message])}\n`);
+    await pauseBeforeMenu(rl);
+  }
+  return true;
+}
+
+async function openUserManagement(rl, botContextRef) {
+  while (true) {
+    const users = await listOperationsUsers(botContextRef.current.botHome);
+    if (!users.length) {
+      console.log(`${formatMessageCard("Users", [
+        `No users found for ${formatBotDisplayName(botContextRef.current)}.`,
+        "Users are created automatically when they message a connected channel.",
+      ])}\n`);
+      await pauseBeforeMenu(rl);
+      return true;
+    }
+
+    clearInteractiveScreen();
+    const choice = await promptSelect({
+      rl,
+      input,
+      output,
+      title: `Users · ${formatBotDisplayName(botContextRef.current)}`,
+      items: users.map((user) => ({
+        label: formatUserPickerLabel(user),
+        value: user.id,
+      })),
+      headerLines: isInteractiveTerminal() ? composeStartupBanner() : [],
+      defaultIndex: 0,
+      hintLines: ["↑/↓ to navigate • Enter: confirm"],
+      fallbackPrompt: `User [1-${users.length}, q=cancel]: `,
+    });
+
+    if (choice.action === "cancel") {
+      return true;
+    }
+    const selectedUser = users.find((user) => user.id === choice.value);
+    if (!selectedUser) {
+      return true;
+    }
+    await openUserActionMenu(rl, botContextRef, selectedUser);
+  }
 }
 
 function getCodexCliStatus() {
@@ -863,7 +1089,7 @@ async function openMainMenu(rl, botContextRef, configRef, bridgeProcessRef, cliS
     rl,
     input,
     output,
-    title: `CodexBridge Menu · ${botContextRef.current.botId}`,
+    title: `CodexBridge Menu · ${formatBotDisplayName(botContextRef.current)}`,
     items,
     headerLines,
     defaultIndex: 0,
@@ -897,7 +1123,7 @@ async function openMainMenu(rl, botContextRef, configRef, bridgeProcessRef, cliS
     try {
       await stopBot(botContextRef.current.botId);
       bridgeProcessRef.current = { pid: null };
-      console.log(`${formatMessageCard("Runtime Stopped", [`Stopped bot ${botContextRef.current.botId}.`])}\n`);
+      console.log(`${formatMessageCard("Runtime Stopped", [`Stopped bot ${formatBotDisplayName(botContextRef.current)}.`])}\n`);
     } catch (error) {
       console.log(`${formatMessageCard("Runtime Stop Failed", [error.message])}\n`);
     }
@@ -919,7 +1145,7 @@ async function openMainMenu(rl, botContextRef, configRef, bridgeProcessRef, cliS
   if (choice.value === "bots") {
     const botAction = await openBotPicker(rl, botContextRef, configRef, bridgeProcessRef, cliStateRef, bootstrapInfoRef, runningTurns);
     if (botAction === "changed") {
-      console.log(`${formatMessageCard("Active Bot", [`Switched to ${botContextRef.current.botId}.`])}\n`);
+      console.log(`${formatMessageCard("Active Bot", [`Switched to ${formatBotDisplayName(botContextRef.current)}.`])}\n`);
       await pauseBeforeMenu(rl);
       return true;
     }
@@ -935,12 +1161,7 @@ async function openMainMenu(rl, botContextRef, configRef, bridgeProcessRef, cliS
     return true;
   }
   if (choice.value === "users") {
-    console.log(`${formatMessageCard("User Management", [
-      "User access, credits, and bans are managed in the web control plane.",
-      "Run: codexbridge web",
-    ])}\n`);
-    await pauseBeforeMenu(rl);
-    return true;
+    return await openUserManagement(rl, botContextRef);
   }
   if (choice.value === "help") {
     printHelpCard();
@@ -967,7 +1188,7 @@ async function handleSlashCommand(line, rl, botContextRef, configRef, bridgeProc
       return await openMainMenu(rl, botContextRef, configRef, bridgeProcessRef, cliStateRef, bootstrapInfoRef, runningTurns);
     case "/bots":
       if (await openBotPicker(rl, botContextRef, configRef, bridgeProcessRef, cliStateRef, bootstrapInfoRef, runningTurns) === "changed") {
-        console.log(`Active bot: ${botContextRef.current.botId}\n`);
+        console.log(`Active bot: ${formatBotDisplayName(botContextRef.current)}\n`);
       }
       return true;
     case "/new":
@@ -1007,7 +1228,7 @@ async function handleSlashCommand(line, rl, botContextRef, configRef, bridgeProc
             return true;
           }
           const created = await createBot({ id, name: name || id, enabled: false });
-          console.log(`${formatMessageCard("Bot Created", [`${created.id} at ${created.homePath}`])}\n`);
+          console.log(`${formatMessageCard("Bot Created", [`${formatBotDisplayName(created)} at ${created.homePath}`])}\n`);
         } catch (error) {
           console.log(`${formatMessageCard("Bot Create Failed", [error.message])}\n`);
         }
@@ -1036,6 +1257,7 @@ async function handleSlashCommand(line, rl, botContextRef, configRef, bridgeProc
           const bot = await getBot(botId);
           const config = await readConfig(bot.homePath);
           console.log(`${formatKeyValueCard("Bot", [
+            ["bot", formatBotDisplayName(bot)],
             ["id", bot.id],
             ["name", bot.name],
             ["status", bot.status],
@@ -1089,7 +1311,7 @@ async function handleSlashCommand(line, rl, botContextRef, configRef, bridgeProc
         const after = await getStateMigrationStatus({ botHome: botContextRef.current.botHome });
         console.log(
           `${formatKeyValueCard(dryRun ? "State Migration Dry Run" : "State Migration", [
-            ["bot", botContextRef.current.botId],
+            ["bot", formatBotDisplayName(botContextRef.current)],
             ["schema before", String(before.schemaVersion)],
             ["schema after", String(after.schemaVersion)],
             ["executed", String(result.executed.length)],
@@ -1125,7 +1347,7 @@ async function handleSlashCommand(line, rl, botContextRef, configRef, bridgeProc
       return true;
     }
     case "/restart":
-      console.log(`${formatMessageCard("Restarting", [`Restarting bot ${botContextRef.current.botId}...`])}\n`);
+      console.log(`${formatMessageCard("Restarting", [`Restarting bot ${formatBotDisplayName(botContextRef.current)}...`])}\n`);
       bridgeProcessRef.current = {
         pid: await restartBotRuntime(botContextRef.current.botId),
       };
@@ -1152,6 +1374,7 @@ export async function startCli({ botId = DEFAULT_BOT_ID } = {}) {
   const botContextRef = {
     current: {
       botId: initial.botId,
+      botName: initial.botName,
       botHome: initial.botHome,
     },
   };
@@ -1218,7 +1441,7 @@ export async function startCli({ botId = DEFAULT_BOT_ID } = {}) {
     let line;
     try {
       restoreInteractiveInput();
-      line = await askCliInputLine(rl, botContextRef.current.botId);
+      line = await askCliInputLine(rl, botContextRef.current);
     } catch (error) {
       if (isReadlineAbortError(error)) {
         rl.close();

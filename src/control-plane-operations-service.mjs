@@ -9,7 +9,7 @@ import {
 import { UserInputError } from "./errors.mjs";
 import { listRunRecords } from "./runs-state.mjs";
 import { getStateMigrationStatus, runStateMigrations } from "./state-migrations.mjs";
-import { adjustPaidCredits, getUserCredits, grantPaidCredits } from "./user-credits.mjs";
+import { adjustPaidCredits, getUserCredits, grantPaidCredits, setDailyFreeLimit } from "./user-credits.mjs";
 import { listUsageEvents } from "./usage-ledger.mjs";
 import { readUsersState, setPrivateEnabled, setUserStatus } from "./users-state.mjs";
 
@@ -101,6 +101,28 @@ export async function adjustCredits(botHome, userId, amount, reason = "manual_ad
     userId: user.id,
     amount: result.adjusted,
     reason,
+  }, botHome);
+  return {
+    user,
+    credits: result,
+  };
+}
+
+export async function updateDailyFreeLimit(botHome, userId, dailyFreeLimit) {
+  const user = await assertKnownOperationsUser(botHome, userId);
+  const normalizedLimit = Number(dailyFreeLimit);
+  if (!Number.isFinite(normalizedLimit) || !Number.isInteger(normalizedLimit) || normalizedLimit < 0) {
+    throw new UserInputError("Daily free limit must be a non-negative whole number.", {
+      code: "invalid_daily_free_limit",
+      details: { path: "dailyFreeLimit" },
+    });
+  }
+  const result = await setDailyFreeLimit({ userId: user.id, dailyFreeLimit: normalizedLimit, botHome });
+  await appendAdminAuditEvent({
+    action: "set_daily_free_limit",
+    userId: user.id,
+    amount: result.dailyFreeLimitAfter,
+    reason: `previous_limit:${result.dailyFreeLimitBefore}`,
   }, botHome);
   return {
     user,

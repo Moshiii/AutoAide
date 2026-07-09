@@ -8,9 +8,10 @@ import {
 } from "./config.mjs";
 import { resolveCliCreditsUserId } from "./user-credits.mjs";
 import { formatKeyValueCard, formatKeyValueGridCard, formatListCard } from "./ui/banner.mjs";
+import { formatBotDisplayName } from "./bot-labels.mjs";
 
-export function formatBotPrompt(botId) {
-  return `codexbridge:${botId}> `;
+export function formatBotPrompt(botContext) {
+  return `codexbridge:${formatBotDisplayName(botContext)}> `;
 }
 
 export function getTelegramConfigView(config) {
@@ -63,7 +64,7 @@ export function formatStatusOverview(botContext, config, bridgeProcess, cliState
   const creditsBalance = creditsInfo?.account?.balance;
   const creditsDisplay = Number.isFinite(creditsBalance) ? String(creditsBalance) : "unknown";
   return formatKeyValueCard("Current Bot", [
-    ["bot", botContext.botId],
+    ["bot", formatBotDisplayName(botContext)],
     ["channel", activeChannel],
     ["runtime", runtimeOnline ? "online" : "offline"],
     ["bootstrap", bootstrapInfo.bootstrapPending ? "pending" : "done"],
@@ -80,7 +81,7 @@ export function formatLaunchSummary(botContext, config, bridgeProcess, cliState,
   const runtimeOnline = Boolean(bridgeProcess?.pid);
   const activeChannel = config.channel || "telegram";
   return formatKeyValueGridCard("CodexBridge", [
-    ["bot", botContext.botId],
+    ["bot", formatBotDisplayName(botContext)],
     ["model", config.runtime?.model || "gpt-5.4"],
     ["runtime", runtimeOnline ? "online" : "offline"],
     ["channel", activeChannel],
@@ -104,7 +105,7 @@ export function formatCliStatus(botContext, config, bridgeProcess, cliState, boo
   const creditsDisplay = Number.isFinite(creditsBalance) ? String(creditsBalance) : "unknown";
   return formatKeyValueCard("CodexBridge Status", [
     ["home", CODEXBRIDGE_HOME],
-    ["bot", botContext.botId],
+    ["bot", formatBotDisplayName(botContext)],
     ["workspace", getWorkspacePath(botContext.botHome)],
     ["bootstrap state", getBootstrapStatePath(botContext.botHome)],
     ["runtime pid file", getBotRuntimePidPath(botContext.botHome)],

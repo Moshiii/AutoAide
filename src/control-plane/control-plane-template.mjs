@@ -541,6 +541,12 @@ export function renderControlPlaneHtml({ homePath = "" } = {}) {
         }).join("") + '</div>';
       }
       function currentBot() { return state.detail && state.detail.detail && state.detail.detail.bot; }
+      function botLabel(bot) {
+        if (!bot) return "-";
+        const id = String(bot.id || "").trim();
+        const name = String(bot.name || id || "").trim();
+        return id ? (name || id) + " (" + id + ")" : name || "-";
+      }
       function currentConfig() { return (state.detail && state.detail.detail && state.detail.detail.config) || {}; }
       function telegramConfig() { return (currentConfig().channels && currentConfig().channels.telegram) || {}; }
       function feishuConfig() { return (currentConfig().channels && currentConfig().channels.feishu) || {}; }
@@ -573,7 +579,7 @@ export function renderControlPlaneHtml({ homePath = "" } = {}) {
         document.getElementById("nav-runs-badge").style.display = activeRuns ? "" : "none";
         const select = document.getElementById("bot-select");
         select.innerHTML = state.bots.map(function (bot) {
-          return '<option value="' + attr(bot.id) + '"' + (bot.id === state.selectedBotId ? " selected" : "") + '>' + escapeHtml(bot.name || bot.id) + (bot.id === state.currentBotId ? "  current" : "") + '</option>';
+          return '<option value="' + attr(bot.id) + '"' + (bot.id === state.selectedBotId ? " selected" : "") + '>' + escapeHtml(botLabel(bot)) + (bot.id === state.currentBotId ? "  current" : "") + '</option>';
         }).join("");
         const bot = currentBot();
         const config = currentConfig();
@@ -585,7 +591,7 @@ export function renderControlPlaneHtml({ homePath = "" } = {}) {
         document.getElementById("top-telegram").innerHTML = dot(statusTone(telegramText)) + " " + escapeHtml(telegramText);
         document.getElementById("top-enabled").innerHTML = dot(statusTone(inviteText)) + " " + escapeHtml(inviteText);
         document.getElementById("side-status-card").innerHTML = kv([
-          ["Bot", escapeHtml((bot && bot.name) || state.selectedBotId || "-")],
+          ["Bot", escapeHtml(botLabel(bot || { id: state.selectedBotId, name: state.selectedBotId }))],
           ["Runtime", dot(statusTone(runtimeText)) + " " + escapeHtml((bot && bot.status) || "unknown")],
           ["Telegram", dot(statusTone(telegramText)) + " " + escapeHtml(telegram.enabled ? "paired" : "unpaired")],
           ["Invite Gate", dot(statusTone(inviteText)) + " " + escapeHtml(inviteReady() ? "ready" : "not ready")],
@@ -816,7 +822,7 @@ export function renderControlPlaneHtml({ homePath = "" } = {}) {
         ];
         return pageHeader("Runs", "Operate active and historical AI work.") +
           '<div class="grid"><div class="grid five">' + stats.map(function (item) { return '<div class="metric"><div class="tiny">' + escapeHtml(item[0]) + '</div><div class="metric-value">' + escapeHtml(item[1]) + '</div></div>'; }).join("") + '</div>' +
-          '<section class="panel"><div class="panel-head"><h2>Chat run</h2><div class="actions"><button class="primary" id="run-chat" data-action="run-chat">Run Prompt</button><button id="stop-chat" data-action="stop-chat">Stop Turn</button></div></div><div class="grid two"><div><div class="kv"><div>Bot</div><div id="chat-bot-name">' + escapeHtml((currentBot() && currentBot().name) || "-") + '</div><div>Session</div><div id="chat-session-label">' + escapeHtml(state.activeSessionLabel || "main") + '</div><div>Run state</div><div id="chat-run-state">' + escapeHtml((state.chat && state.chat.status) || "idle") + '</div></div><div id="chat-demo-prompts" style="margin-top:12px;">' + renderDemoPrompts() + '</div></div><div><textarea id="chat-input">Summarize the current repo and propose next steps.</textarea><div class="actions" style="margin-top:10px;"><button class="primary" id="send-chat" data-action="run-chat">Send</button></div></div></div><pre id="chat-output" style="white-space:pre-wrap;">' + escapeHtml((state.chat && (state.chat.output || state.chat.friendlyMessage || state.chat.error)) || "No run yet.") + '</pre><div id="chat-workspace-changes" style="margin-top:12px;">' + renderWorkspaceChanges() + '</div></section>' +
+          '<section class="panel"><div class="panel-head"><h2>Chat run</h2><div class="actions"><button class="primary" id="run-chat" data-action="run-chat">Run Prompt</button><button id="stop-chat" data-action="stop-chat">Stop Turn</button></div></div><div class="grid two"><div><div class="kv"><div>Bot</div><div id="chat-bot-name">' + escapeHtml(botLabel(currentBot())) + '</div><div>Session</div><div id="chat-session-label">' + escapeHtml(state.activeSessionLabel || "main") + '</div><div>Run state</div><div id="chat-run-state">' + escapeHtml((state.chat && state.chat.status) || "idle") + '</div></div><div id="chat-demo-prompts" style="margin-top:12px;">' + renderDemoPrompts() + '</div></div><div><textarea id="chat-input">Summarize the current repo and propose next steps.</textarea><div class="actions" style="margin-top:10px;"><button class="primary" id="send-chat" data-action="run-chat">Send</button></div></div></div><pre id="chat-output" style="white-space:pre-wrap;">' + escapeHtml((state.chat && (state.chat.output || state.chat.friendlyMessage || state.chat.error)) || "No run yet.") + '</pre><div id="chat-workspace-changes" style="margin-top:12px;">' + renderWorkspaceChanges() + '</div></section>' +
           '<section class="panel"><div class="panel-head"><h2>Runs</h2><button data-action="refresh">Refresh</button></div>' + table(["Run", "User", "Channel", "Session", "Status", "Duration", "WS changes", "Action"], state.runs.map(renderRunRow), "No runs yet.") + '</section>' +
           '<div class="grid two"><section class="panel"><div class="panel-head"><h3>Sessions</h3><div class="actions"><input id="session-label-input" placeholder="research-plan" /><button id="create-session" data-action="create-session">Create Session</button></div></div>' + table(["Session", "Status", "Action"], state.sessions.map(function (session) { return [escapeHtml(session.label), escapeHtml(session.label === state.activeSessionLabel ? "active" : "inactive"), '<button data-use-session="' + attr(session.label) + '">Use</button>']; }), "No sessions yet.") + '</section><section class="panel"><div class="panel-head"><h3>Goals & Schedules</h3></div><input id="goal-objective-input" placeholder="Create a research brief" /><div class="actions" style="margin-top:8px;"><button id="create-goal" data-action="create-goal">Create Goal</button></div><div style="height:12px;"></div><input id="schedule-cron-input" placeholder="0 30 9 * * 1-5" /><input id="schedule-timezone-input" value="Asia/Shanghai" /><input id="schedule-objective-input" placeholder="Summarize market open drivers" /><div class="actions" style="margin-top:8px;"><button id="create-schedule" data-action="create-schedule">Create Schedule</button></div></section></div></div>';
       }
@@ -915,7 +921,7 @@ export function renderControlPlaneHtml({ homePath = "" } = {}) {
         const health = state.detail.health || {};
         const contentByPage = {
           overview: inspectorFacts("Bot facts", [
-            ["Bot", escapeHtml(bot.name || bot.id)],
+            ["Bot", escapeHtml(botLabel(bot))],
             ["Home path", escapeHtml(compactPath(bot.homePath))],
             ["Config file", escapeHtml(compactPath(state.detail.detail.paths.configPath))],
             ["Model", escapeHtml((currentConfig().runtime && currentConfig().runtime.model) || "gpt-5.4")],

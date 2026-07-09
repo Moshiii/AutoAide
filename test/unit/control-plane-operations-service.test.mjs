@@ -34,11 +34,13 @@ test("control plane operations validate credit mutations and write audit rows", 
 
     const grant = await service.grantCredits(botHome, "telegram:100", "3");
     const adjust = await service.adjustCredits(botHome, "telegram:100", -1, "refund");
+    const dailyFreeLimit = await service.updateDailyFreeLimit(botHome, "telegram:100", 9);
     const audit = await service.listAdminAudit(botHome);
 
     assert.equal(grant.credits.granted, 3);
     assert.equal(adjust.credits.adjusted, -1);
-    assert.deepEqual(audit.map((event) => event.action), ["grant_credits", "adjust_credits"]);
+    assert.equal(dailyFreeLimit.credits.dailyFreeLimitAfter, 9);
+    assert.deepEqual(audit.map((event) => event.action), ["grant_credits", "adjust_credits", "set_daily_free_limit"]);
     await assert.rejects(
       () => service.grantCredits(botHome, "telegram:100", 0),
       /positive whole number/,
@@ -46,6 +48,10 @@ test("control plane operations validate credit mutations and write audit rows", 
     await assert.rejects(
       () => service.adjustCredits(botHome, "telegram:missing", 1),
       /Unknown user/,
+    );
+    await assert.rejects(
+      () => service.updateDailyFreeLimit(botHome, "telegram:100", -1),
+      /Daily free limit/,
     );
   });
 });
