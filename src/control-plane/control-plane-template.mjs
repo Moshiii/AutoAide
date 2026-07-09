@@ -126,7 +126,7 @@ export function renderControlPlaneHtml({ homePath = "" } = {}) {
       .nav button {
         justify-content: start;
         display: grid;
-        grid-template-columns: 24px minmax(0, 1fr) auto;
+        grid-template-columns: minmax(0, 1fr) auto;
         align-items: center;
         gap: 10px;
         width: 100%;
@@ -142,7 +142,6 @@ export function renderControlPlaneHtml({ homePath = "" } = {}) {
         background: var(--surface-blue);
         color: var(--blue);
       }
-      .nav-glyph { width: 20px; text-align: center; color: inherit; font-weight: 800; }
       .nav-badge {
         min-width: 20px;
         border-radius: 999px;
@@ -172,7 +171,7 @@ export function renderControlPlaneHtml({ homePath = "" } = {}) {
         color: #0f3fb3;
         font-weight: 760;
       }
-      .shell { min-width: 0; display: grid; grid-template-rows: 76px minmax(0, 1fr) 34px; min-height: 100vh; }
+      .shell { min-width: 0; display: grid; grid-template-rows: minmax(0, 1fr) 34px; min-height: 100vh; }
       .topbar {
         position: sticky;
         top: 0;
@@ -200,17 +199,15 @@ export function renderControlPlaneHtml({ homePath = "" } = {}) {
       .dot.red { background: var(--red); }
       .dot.amber { background: #f59e0b; }
       .content-grid {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) 330px;
+        display: block;
         min-height: 0;
         min-width: 0;
         max-width: 100%;
       }
       .main-pane {
         min-width: 0;
-        max-width: 100%;
-        padding: 22px 26px 28px;
-        border-right: 1px solid var(--line);
+        max-width: 1180px;
+        padding: 28px 32px;
       }
       .inspector {
         min-width: 0;
@@ -259,6 +256,102 @@ export function renderControlPlaneHtml({ homePath = "" } = {}) {
       .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
       .metric { padding: 14px; display: grid; gap: 6px; min-height: 82px; }
       .metric-value { font-size: 22px; font-weight: 780; }
+      .dashboard-hero {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+        padding: 18px;
+        box-shadow: var(--shadow);
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 18px;
+        align-items: center;
+      }
+      .dashboard-hero h1 { font-size: 28px; }
+      .dashboard-summary {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .dashboard-card {
+        min-width: 0;
+        min-height: 118px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--surface);
+        box-shadow: var(--shadow);
+        padding: 14px;
+        display: grid;
+        align-content: space-between;
+        gap: 10px;
+      }
+      .dashboard-card .metric-value { font-size: 28px; line-height: 1; }
+      .dashboard-card .tiny { min-height: 18px; }
+      .dashboard-trend {
+        color: var(--muted);
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .dashboard-bar {
+        height: 7px;
+        border-radius: 999px;
+        background: #e8eef7;
+        overflow: hidden;
+      }
+      .dashboard-bar span {
+        display: block;
+        height: 100%;
+        border-radius: inherit;
+        background: var(--blue);
+      }
+      .signal-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 14px;
+      }
+      .status-counts {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+      .status-count {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 14px;
+        background: #fff;
+      }
+      .status-count strong {
+        display: block;
+        margin-top: 4px;
+        font-size: 28px;
+        line-height: 1;
+      }
+      .signal-list { display: grid; gap: 10px; }
+      .signal-row {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .signal-row:last-child { border-bottom: 0; }
+      .sparkline {
+        display: grid;
+        grid-template-columns: repeat(10, 1fr);
+        gap: 4px;
+        align-items: end;
+        height: 58px;
+      }
+      .sparkline span {
+        display: block;
+        min-height: 6px;
+        border-radius: 3px 3px 0 0;
+        background: #bfd3ff;
+      }
       .chip {
         display: inline-flex;
         align-items: center;
@@ -368,17 +461,16 @@ export function renderControlPlaneHtml({ homePath = "" } = {}) {
       }
       @media (max-width: 1180px) {
         .app { grid-template-columns: 220px minmax(0, 1fr); }
-        .content-grid { grid-template-columns: 1fr; }
-        .inspector { border-top: 1px solid var(--line); }
-        .topbar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .top-actions { justify-content: flex-start; padding: 12px 20px; border-right: 1px solid var(--line); }
+        .dashboard-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .signal-grid { grid-template-columns: minmax(0, 1fr); }
       }
       @media (max-width: 760px) {
         .app { display: block; }
         .sidebar { position: static; height: auto; }
         .nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .shell { display: block; }
-        .topbar, .grid.two, .grid.three, .grid.five, .split, .workspace-layout, .form-grid, .banner {
+        .topbar, .grid.two, .grid.three, .grid.five, .split, .workspace-layout, .form-grid, .banner, .dashboard-hero, .dashboard-summary {
           grid-template-columns: minmax(0, 1fr);
         }
         .topbar { display: grid; }
@@ -405,37 +497,20 @@ export function renderControlPlaneHtml({ homePath = "" } = {}) {
             <div><strong>CodexBridge</strong><div class="muted">Control Plane</div></div>
           </div>
           <nav class="nav" id="tabs" aria-label="Primary">
-            ${navButton("overview", "⌂", "Overview")}
-            ${navButton("setup", "✓", "Setup")}
-            ${navButton("channels", "⌁", "Channels")}
-            ${navButton("runs", "▷", "Runs", "nav-runs-badge")}
-            ${navButton("workspace", "□", "Workspace")}
-            ${navButton("users", "♙", "Users & Access")}
-            ${navButton("safety", "◇", "Safety", "nav-risk-badge")}
-            ${navButton("settings", "⚙", "Settings")}
+            ${navButton("overview", "Overview")}
+            ${navButton("bots", "Bots")}
+            ${navButton("users", "Users")}
+            ${navButton("runs", "Runs", "nav-runs-badge")}
+            ${navButton("settings", "Settings")}
           </nav>
         </div>
         <div class="sidebar-foot">
-          <div class="side-card" id="side-status-card">Loading environment...</div>
           <div class="operator"><div class="avatar">MO</div><div><strong>Moshiwei Operator</strong><div class="tiny">operator</div></div></div>
         </div>
       </aside>
       <section class="shell">
-        <header class="topbar">
-          <div class="top-cell"><div class="top-label">Bot</div><select id="bot-select"><option>Loading</option></select></div>
-          <div class="top-cell"><div class="top-label">Runtime</div><div class="status-line" id="top-runtime"><span class="dot red"></span> Unknown</div></div>
-          <div class="top-cell"><div class="top-label">Telegram</div><div class="status-line" id="top-telegram"><span class="dot red"></span> Unknown</div></div>
-          <div class="top-cell"><div class="top-label">Invite Gate</div><div class="status-line" id="top-enabled"><span class="dot red"></span> Unknown</div></div>
-          <div class="top-actions">
-            <button class="primary" id="action-start">▶ Start runtime</button>
-            <button id="action-restart">Restart</button>
-            <button class="danger" id="action-stop">Stop</button>
-          </div>
-          <div class="top-actions"><button id="open-create-bot">New bot</button><div class="avatar">MO</div></div>
-        </header>
         <div class="content-grid">
           <main class="main-pane" id="page-root"></main>
-          <aside class="inspector" id="inspector-root"></aside>
         </div>
         <footer class="footer"><span><span class="dot green"></span> System healthy</span><span>Version v1.2.0</span><span>Local environment</span><span>UTC+8</span></footer>
       </section>
@@ -476,6 +551,13 @@ export function renderControlPlaneHtml({ homePath = "" } = {}) {
         selectedRiskId: "",
         sessions: [],
         activeSessionLabel: "main",
+        botHealth: {},
+        dashboard: {
+          generatedAt: null,
+          loading: true,
+          bots: [],
+          totals: {},
+        },
         goals: [],
         schedules: [],
         skills: [],
@@ -551,6 +633,66 @@ export function renderControlPlaneHtml({ homePath = "" } = {}) {
       function telegramConfig() { return (currentConfig().channels && currentConfig().channels.telegram) || {}; }
       function feishuConfig() { return (currentConfig().channels && currentConfig().channels.feishu) || {}; }
       function inviteReady() { return Boolean(state.detail && state.detail.setupGuide && state.detail.setupGuide.ready && state.detail.securityReadiness && state.detail.securityReadiness.readyForExternalUsers); }
+      function formatNumber(value) {
+        const number = Number(value) || 0;
+        return number.toLocaleString();
+      }
+      function formatBytes(value) {
+        const bytes = Number(value) || 0;
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1).replace(/\\.0$/, "") + " KB";
+        if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1).replace(/\\.0$/, "") + " MB";
+        return (bytes / (1024 * 1024 * 1024)).toFixed(1).replace(/\\.0$/, "") + " GB";
+      }
+      function pct(value, total) {
+        const denominator = Number(total) || 0;
+        if (!denominator) return "0%";
+        return Math.round(((Number(value) || 0) / denominator) * 100) + "%";
+      }
+      function safeArray(value) {
+        return Array.isArray(value) ? value : [];
+      }
+      function sum(values, selector) {
+        return values.reduce(function (total, item) { return total + (Number(selector(item)) || 0); }, 0);
+      }
+      function workspaceFileSize(files) {
+        return safeArray(files).filter(function (entry) { return entry.type === "file"; }).reduce(function (total, entry) {
+          return total + (Number(entry.size) || 0);
+        }, 0);
+      }
+      function latestRunAt(runs) {
+        const timestamps = safeArray(runs).map(function (run) {
+          return Date.parse(run.updatedAt || run.finishedAt || run.startedAt || run.createdAt || "");
+        }).filter(Number.isFinite).sort(function (a, b) { return b - a; });
+        return timestamps.length ? new Date(timestamps[0]).toISOString() : "";
+      }
+      function buildDashboard(botSummaries) {
+        const bots = safeArray(botSummaries);
+        const totals = {
+          bots: bots.length,
+          enabledBots: bots.filter(function (bot) { return bot.enabled; }).length,
+          runningBots: bots.filter(function (bot) { return bot.runtimeStatus === "running"; }).length,
+          users: sum(bots, function (bot) { return bot.users; }),
+          conversations: sum(bots, function (bot) { return bot.conversations; }),
+          runs: sum(bots, function (bot) { return bot.runs; }),
+          activeRuns: sum(bots, function (bot) { return bot.activeRuns; }),
+          workspaceFiles: sum(bots, function (bot) { return bot.workspaceFiles; }),
+          workspaceBytes: sum(bots, function (bot) { return bot.workspaceBytes; }),
+          sessions: sum(bots, function (bot) { return bot.sessions; }),
+          paidCreditsCharged: sum(bots, function (bot) { return bot.paidCreditsCharged; }),
+          paidCreditsGranted: sum(bots, function (bot) { return bot.paidCreditsGranted; }),
+          riskEvents: sum(bots, function (bot) { return bot.riskEvents; }),
+          failedRuns: sum(bots, function (bot) { return bot.failedRuns; }),
+          completedRuns: sum(bots, function (bot) { return bot.completedRuns; }),
+        };
+        totals.successRate = totals.runs ? Math.round((totals.completedRuns / totals.runs) * 100) : 0;
+        return {
+          generatedAt: new Date().toISOString(),
+          loading: false,
+          bots: bots.sort(function (a, b) { return String(b.latestRunAt || "").localeCompare(String(a.latestRunAt || "")); }),
+          totals,
+        };
+      }
       function blockers() {
         if (!state.detail) return [];
         const guide = state.detail.setupGuide || {};
@@ -559,45 +701,69 @@ export function renderControlPlaneHtml({ homePath = "" } = {}) {
         });
         const extra = [];
         if (state.detail.storageReadiness && !state.detail.storageReadiness.ready) extra.push({ label: "Storage migration", hint: state.detail.storageReadiness.next || "Run migrations before inviting users.", target: "settings" });
-        if (state.detail.securityReadiness && !state.detail.securityReadiness.readyForExternalUsers) extra.push({ label: "Verify isolation", hint: state.detail.securityReadiness.next || "Hard isolation is not verified.", target: "safety" });
+        if (state.detail.securityReadiness && !state.detail.securityReadiness.readyForExternalUsers) extra.push({ label: "Review external sharing", hint: state.detail.securityReadiness.next || "External sharing is restricted until host isolation is verified.", target: "safety" });
         return setupBlockers.concat(extra);
+      }
+      function securityReadiness() {
+        return state.detail && state.detail.securityReadiness ? state.detail.securityReadiness : {};
+      }
+      function isolationModeLabel(mode) {
+        const value = String(mode || "none").trim();
+        if (!value || value === "none") return "Application-only";
+        return value.replaceAll("_", " ");
+      }
+      function isolationProbeTone(status) {
+        if (status === "pass") return "green";
+        if (status === "fail" || status === "blocked") return "red";
+        return "amber";
       }
       function renderAll() {
         renderShell();
         renderPage();
-        renderInspector();
       }
       function renderShell() {
         document.querySelectorAll("[data-nav]").forEach(function (button) {
           button.classList.toggle("active", button.dataset.nav === state.page);
         });
-        const riskCount = state.riskLogs.filter(function (event) { return !(event.review && event.review.status); }).length;
-        const activeRuns = state.runs.filter(function (run) { return run.status === "running" || run.status === "queued"; }).length;
-        document.getElementById("nav-risk-badge").textContent = riskCount || "";
-        document.getElementById("nav-risk-badge").style.display = riskCount ? "" : "none";
-        document.getElementById("nav-runs-badge").textContent = activeRuns || "";
-        document.getElementById("nav-runs-badge").style.display = activeRuns ? "" : "none";
+        const dashboardTotals = (state.dashboard && state.dashboard.totals) || {};
+        const riskCount = dashboardTotals.riskEvents ?? state.riskLogs.filter(function (event) { return !(event.review && event.review.status); }).length;
+        const activeRuns = dashboardTotals.activeRuns ?? state.runs.filter(function (run) { return run.status === "running" || run.status === "queued"; }).length;
+        const runsBadge = document.getElementById("nav-runs-badge");
+        if (runsBadge) {
+          runsBadge.textContent = activeRuns || "";
+          runsBadge.style.display = activeRuns ? "" : "none";
+        }
         const select = document.getElementById("bot-select");
-        select.innerHTML = state.bots.map(function (bot) {
-          return '<option value="' + attr(bot.id) + '"' + (bot.id === state.selectedBotId ? " selected" : "") + '>' + escapeHtml(botLabel(bot)) + (bot.id === state.currentBotId ? "  current" : "") + '</option>';
-        }).join("");
+        if (select) {
+          select.innerHTML = state.bots.map(function (bot) {
+            return '<option value="' + attr(bot.id) + '"' + (bot.id === state.selectedBotId ? " selected" : "") + '>' + escapeHtml(botLabel(bot)) + (bot.id === state.currentBotId ? "  current" : "") + '</option>';
+          }).join("");
+        }
         const bot = currentBot();
         const config = currentConfig();
         const telegram = telegramConfig();
         const runtimeText = bot && bot.status === "running" ? "Online" : "Stopped";
         const telegramText = telegram.enabled && telegram.botToken ? "Paired" : "Unpaired";
         const inviteText = inviteReady() ? "Ready" : "Not ready";
-        document.getElementById("top-runtime").innerHTML = dot(statusTone(runtimeText)) + " " + escapeHtml(runtimeText);
-        document.getElementById("top-telegram").innerHTML = dot(statusTone(telegramText)) + " " + escapeHtml(telegramText);
-        document.getElementById("top-enabled").innerHTML = dot(statusTone(inviteText)) + " " + escapeHtml(inviteText);
-        document.getElementById("side-status-card").innerHTML = kv([
-          ["Bot", escapeHtml(botLabel(bot || { id: state.selectedBotId, name: state.selectedBotId }))],
-          ["Runtime", dot(statusTone(runtimeText)) + " " + escapeHtml((bot && bot.status) || "unknown")],
-          ["Telegram", dot(statusTone(telegramText)) + " " + escapeHtml(telegram.enabled ? "paired" : "unpaired")],
-          ["Invite Gate", dot(statusTone(inviteText)) + " " + escapeHtml(inviteReady() ? "ready" : "not ready")],
-        ]);
-        document.getElementById("action-start").disabled = !state.selectedBotId || (bot && bot.status === "running");
-        document.getElementById("action-stop").disabled = !state.selectedBotId || !(bot && bot.status === "running");
+        const topRuntime = document.getElementById("top-runtime");
+        const topTelegram = document.getElementById("top-telegram");
+        const topEnabled = document.getElementById("top-enabled");
+        const sideStatus = document.getElementById("side-status-card");
+        if (topRuntime) topRuntime.innerHTML = dot(statusTone(runtimeText)) + " " + escapeHtml(runtimeText);
+        if (topTelegram) topTelegram.innerHTML = dot(statusTone(telegramText)) + " " + escapeHtml(telegramText);
+        if (topEnabled) topEnabled.innerHTML = dot(statusTone(inviteText)) + " " + escapeHtml(inviteText);
+        if (sideStatus) {
+          sideStatus.innerHTML = kv([
+            ["Bot", escapeHtml(botLabel(bot || { id: state.selectedBotId, name: state.selectedBotId }))],
+            ["Runtime", dot(statusTone(runtimeText)) + " " + escapeHtml((bot && bot.status) || "unknown")],
+            ["Telegram", dot(statusTone(telegramText)) + " " + escapeHtml(telegram.enabled ? "paired" : "unpaired")],
+            ["Invite Gate", dot(statusTone(inviteText)) + " " + escapeHtml(inviteReady() ? "ready" : "not ready")],
+          ]);
+        }
+        const actionStart = document.getElementById("action-start");
+        const actionStop = document.getElementById("action-stop");
+        if (actionStart) actionStart.disabled = !state.selectedBotId || (bot && bot.status === "running");
+        if (actionStop) actionStop.disabled = !state.selectedBotId || !(bot && bot.status === "running");
       }
       function pageHeader(title, subtitle) {
         return '<div class="page-head"><h1>' + escapeHtml(title) + '</h1><p class="muted">' + escapeHtml(subtitle) + '</p></div>';
@@ -609,6 +775,7 @@ export function renderControlPlaneHtml({ homePath = "" } = {}) {
         }
         const pages = {
           overview: renderOverview,
+          bots: renderBots,
           setup: renderSetup,
           channels: renderChannels,
           runs: renderRuns,
@@ -631,45 +798,108 @@ export function renderControlPlaneHtml({ homePath = "" } = {}) {
         '</section>';
       }
       function renderOverview() {
-        const bot = currentBot();
-        const config = currentConfig();
-        const health = state.detail.health || {};
-        const telegram = telegramConfig();
-        const recentRuns = state.runs.slice(0, 5).map(function (run) {
+        const dashboard = state.dashboard || buildDashboard([]);
+        const totals = dashboard.totals || {};
+        const botRows = safeArray(dashboard.bots).map(function (bot) {
           return [
-            escapeHtml(formatDate(run.createdAt || run.startedAt)),
-            escapeHtml(run.id || "-"),
-            escapeHtml(run.channel || run.trigger || "-"),
-            chip(run.status || "unknown", statusTone(run.status)),
-            escapeHtml(String(run.messages ?? run.messageCount ?? 0)),
-            escapeHtml(run.durationMs ? Math.round(run.durationMs / 1000) + "s" : "-"),
-            escapeHtml(run.error || run.result || run.status || "-"),
+            '<strong>' + escapeHtml(botLabel(bot)) + '</strong><div class="tiny">' + escapeHtml(bot.id) + '</div>',
+            chip(bot.runtimeStatus === "running" ? "Online" : "Stopped", bot.runtimeStatus === "running" ? "green" : "red"),
+            escapeHtml(formatNumber(bot.users)),
+            escapeHtml(formatNumber(bot.conversations)),
+            escapeHtml(formatNumber(bot.runs)),
+            '<button data-dashboard-bot="' + attr(bot.id) + '">Open</button>',
           ];
         });
-        return pageHeader("Overview", "Operate the current bot and resolve readiness blockers first.") +
+        return pageHeader("Overview", "Global dashboard for bots, users, conversations, runs, workspace usage, and credits.") +
           '<div class="grid">' +
-          renderInviteBanner() +
-          '<section class="panel" id="invite-readiness"><div class="panel-head"><div><h3>Next actions</h3><p class="muted">Choose a recommended next step.</p></div><div class="actions"><button class="primary" data-action="go-channels">Connect Telegram</button><button id="quick-test-chat" data-action="quick-test">Run Quick Test</button><button data-action="go-safety">Review Safety</button></div></div></section>' +
-          '<div class="grid three">' +
-            summaryPanel("Runtime", [["Status", chip(bot.status || "unknown", statusTone(bot.status))], ["PID", escapeHtml(bot.runtimePid || "-")], ["Desired version", escapeHtml(health.desiredVersion || "v1")], ["Health", chip(health.healthy ? "Online" : "Unknown", health.healthy ? "green" : "")]], '<button class="primary" data-action="start-runtime">Start runtime</button><button data-action="restart-runtime">Restart</button>') +
-            summaryPanel("Channels", [["Telegram", chip(telegram.enabled ? "Paired" : "Unpaired", telegram.enabled ? "green" : "red")], ["Feishu", chip(feishuConfig().enabled ? "Connected" : "Not connected", feishuConfig().enabled ? "green" : "")], ["IM access", escapeHtml((state.detail.access && state.detail.access.privateChats || []).length ? "Enabled" : "Disabled")], ["Last inbound", "-"]], '<button data-action="go-channels">Manage channels</button>') +
-            summaryPanel("Safety", [["Isolation", chip((state.detail.securityReadiness && state.detail.securityReadiness.mode) || "application-only", "amber")], ["Secrets scan", chip("Passed", "green")], ["Conversation risk", chip(String(state.riskLogs.length), state.riskLogs.length ? "amber" : "green")], ["Audit logging", chip("Enabled", "green")]], '<button data-action="go-safety">Open safety center</button>') +
-          '</div>' +
-          '<section class="panel"><div class="panel-head"><h3>Recent runs</h3><button data-action="go-runs">View all runs</button></div>' + table(["Started", "Run ID", "Channel", "Status", "Messages", "Duration", "Result"], recentRuns, "No runs yet. Use Quick Test or ask from Telegram/Feishu.") + '</section>' +
-          '<section class="panel"><div class="panel-head"><h3>Recent workspace files</h3><button data-action="go-workspace">Open workspace</button></div><div id="overview-recent-files">' + renderRecentFiles() + '</div></section>' +
-          '<section class="panel"><div class="panel-head"><h3>Quick test prompts</h3><button id="quick-test-file-demo" data-action="file-demo">Run File Demo</button></div><div id="overview-demo-prompts">' + renderDemoPrompts() + '</div></section>' +
+            '<div class="dashboard-summary">' +
+              dashboardCard("Bots", formatNumber(totals.bots), formatNumber(totals.runningBots) + " online · " + formatNumber((totals.bots || 0) - (totals.runningBots || 0)) + " stopped", pct(totals.runningBots, totals.bots), "go-bots") +
+              dashboardCard("Users", formatNumber(totals.users), "total bot users", pct(totals.users, Math.max(totals.users, 1)), "go-users") +
+              dashboardCard("Conversations", formatNumber(totals.conversations), "logged user inputs", pct(totals.conversations, Math.max(totals.conversations + totals.riskEvents, 1)), "go-runs") +
+              dashboardCard("Runs", formatNumber(totals.runs), formatNumber(totals.activeRuns) + " active · " + (totals.successRate || 0) + "% success", pct(totals.completedRuns, Math.max(totals.runs, 1)), "go-runs") +
+              dashboardCard("Workspace", formatBytes(totals.workspaceBytes), formatNumber(totals.workspaceFiles) + " files across bots", pct(totals.workspaceFiles, Math.max(totals.workspaceFiles, 1)), "go-workspace") +
+            '</div>' +
+            '<div class="signal-grid">' +
+              '<section class="panel"><div class="panel-head"><div><h2>Bot status</h2><p class="muted">How many bot runtimes are online or stopped.</p></div><button data-action="refresh">Refresh</button></div>' + renderBotStatusSummary(totals) + table(["Bot", "Runtime", "Users", "Conversations", "Runs", "Action"], botRows, "No bots yet. Create one bot to start.") + '</section>' +
+              '<section class="panel"><div class="panel-head"><div><h2>Credits</h2><p class="muted">Total credits consumed and granted across all bots.</p></div></div>' + renderOperatingSignals(totals) + '</section>' +
+            '</div>' +
+            '<div class="grid two">' +
+              '<section class="panel"><div class="panel-head"><h2>Recent activity</h2><button data-action="go-runs">View runs</button></div>' + renderDashboardRecentActivity(dashboard.bots) + '</section>' +
+              '<section class="panel"><div class="panel-head"><h2>Next actions</h2><button data-action="go-bots">Manage bots</button></div>' + renderDashboardNextActions(totals) + '</section>' +
+            '</div>' +
           '</div>';
+      }
+      function renderBots() {
+        const dashboardById = Object.fromEntries(safeArray(state.dashboard && state.dashboard.bots).map(function (bot) { return [bot.id, bot]; }));
+        const rows = state.bots.map(function (bot) {
+          const summary = dashboardById[bot.id] || {};
+          const runtimeStatus = summary.runtimeStatus || bot.status || "unknown";
+          return [
+            '<strong>' + escapeHtml(botLabel(bot)) + '</strong><div class="tiny">' + escapeHtml(bot.id) + (bot.id === state.currentBotId ? " · current" : "") + '</div>',
+            chip(runtimeStatus === "running" ? "Online" : "Stopped", runtimeStatus === "running" ? "green" : "red"),
+            escapeHtml(bot.channel || "-"),
+            escapeHtml(formatNumber(summary.users)),
+            escapeHtml(formatNumber(summary.conversations)),
+            escapeHtml(formatNumber(summary.runs)),
+            escapeHtml(formatBytes(summary.workspaceBytes)),
+            '<button data-dashboard-bot="' + attr(bot.id) + '">Open</button>',
+          ];
+        });
+        return pageHeader("Bots", "Manage bot workspaces and inspect runtime status.") +
+          '<div class="grid">' +
+            '<section class="panel"><div class="panel-head"><div><h2>All bots</h2><p class="muted">Choose a bot before opening users, runs, workspace, or settings.</p></div><div class="actions"><button data-action="refresh">Refresh</button><button class="primary" data-action="open-create-bot">New bot</button></div></div>' +
+            table(["Bot", "Runtime", "Channel", "Users", "Conversations", "Runs", "Workspace", "Action"], rows, "No bots yet. Create one bot to start.") + '</section>' +
+          '</div>';
+      }
+      function dashboardCard(label, value, hint, progress, action) {
+        return '<section class="dashboard-card" data-action="' + attr(action) + '"><div><div class="tiny">' + escapeHtml(label) + '</div><div class="metric-value">' + escapeHtml(value) + '</div></div><div><div class="dashboard-trend">' + escapeHtml(hint) + '</div><div class="dashboard-bar"><span style="width:' + attr(progress) + ';"></span></div></div></section>';
+      }
+      function renderBotStatusSummary(totals) {
+        const stopped = Math.max(0, (Number(totals.bots) || 0) - (Number(totals.runningBots) || 0));
+        return '<div class="status-counts"><div class="status-count"><div class="tiny">Online</div><strong>' + escapeHtml(formatNumber(totals.runningBots)) + '</strong></div><div class="status-count"><div class="tiny">Stopped</div><strong>' + escapeHtml(formatNumber(stopped)) + '</strong></div></div>';
+      }
+      function renderOperatingSignals(totals) {
+        const rows = [
+          ["Total credits consumed", formatNumber(totals.paidCreditsCharged), totals.paidCreditsCharged ? "blue" : ""],
+          ["Total credits granted", formatNumber(totals.paidCreditsGranted), totals.paidCreditsGranted ? "green" : ""],
+          ["Net credits available", formatNumber(Math.max(0, (Number(totals.paidCreditsGranted) || 0) - (Number(totals.paidCreditsCharged) || 0))), "green"],
+        ];
+        return '<div class="signal-list">' + rows.map(function (row) {
+          return '<div class="signal-row">' + dot(row[2]) + '<div><strong>' + escapeHtml(row[0]) + '</strong><div class="tiny">All bots</div></div><div>' + chip(row[1], row[2]) + '</div></div>';
+        }).join("") + '</div>';
+      }
+      function renderDashboardRecentActivity(bots) {
+        const rows = safeArray(bots)
+          .filter(function (bot) { return bot.latestRunAt; })
+          .slice(0, 6)
+          .map(function (bot) {
+            return [escapeHtml(formatDate(bot.latestRunAt)), escapeHtml(botLabel(bot)), escapeHtml(formatNumber(bot.runs)), escapeHtml(formatNumber(bot.conversations)), '<button data-dashboard-bot="' + attr(bot.id) + '">Open bot</button>'];
+          });
+        return table(["Latest run", "Bot", "Runs", "Conversations", "Action"], rows, "No recent activity yet. Start a local chat or connect Feishu/Telegram.");
+      }
+      function renderDashboardNextActions(totals) {
+        const items = [];
+        if (!totals.bots) items.push(["Create first bot", "Set up one managed assistant workspace.", "open-create-bot", "blue"]);
+        if (totals.bots && !totals.runningBots) items.push(["Start a runtime", "No bot runtime is online right now.", "start-runtime", "amber"]);
+        if (!totals.users) items.push(["Invite a test user", "No users have reached CodexBridge yet.", "go-channels", "blue"]);
+        if (totals.riskEvents) items.push(["Review risk events", "There are conversation events needing attention.", "go-safety", "amber"]);
+        if (!items.length) items.push(["System looks steady", "Usage and risk are under control. Keep monitoring credits and failed runs.", "go-runs", "green"]);
+        return '<div class="signal-list">' + items.map(function (item) {
+          return '<div class="signal-row">' + dot(item[3]) + '<div><strong>' + escapeHtml(item[0]) + '</strong><div class="muted">' + escapeHtml(item[1]) + '</div></div><button data-action="' + attr(item[2]) + '">Open</button></div>';
+        }).join("") + '</div>';
       }
       function summaryPanel(title, rows, actions) {
         return '<section class="panel"><div class="panel-head"><h2>' + escapeHtml(title) + '</h2></div>' + kv(rows) + '<div class="actions" style="margin-top:14px;">' + actions + '</div></section>';
       }
       function renderSetup() {
         const guide = state.detail.setupGuide || { steps: [] };
+        const security = securityReadiness();
+        const externalReady = Boolean(security.readyForExternalUsers);
         const validations = [
           ["Storage migration", state.detail.storageReadiness && state.detail.storageReadiness.ready ? "OK" : "Action required", state.detail.storageReadiness && state.detail.storageReadiness.ready ? "green" : "red"],
           ["Telegram connection", telegramConfig().botToken ? "Ready" : "Missing", telegramConfig().botToken ? "green" : "red"],
           ["Feishu connection", feishuConfig().enabled ? "Ready" : "Optional", feishuConfig().enabled ? "green" : "amber"],
-          ["Hard isolation", state.detail.securityReadiness && state.detail.securityReadiness.hardIsolationVerified ? "Ready" : "Warning", state.detail.securityReadiness && state.detail.securityReadiness.hardIsolationVerified ? "green" : "amber"],
+          ["External sharing", externalReady ? "Ready" : "Restricted", externalReady ? "green" : "amber"],
           ["Quick test (local)", state.detail.quickTestPreflight && state.detail.quickTestPreflight.readyForLocal ? "Ready" : "Ready", "green"],
         ];
         return pageHeader("Setup", "Complete these steps to get your bot up and running.") +
@@ -706,7 +936,7 @@ export function renderControlPlaneHtml({ homePath = "" } = {}) {
           "Storage migration": "Schema 0/1 requires migration when pending.",
           "Telegram connection": "No Telegram token configured until BotFather token is saved.",
           "Feishu connection": "Optional. Configure only if using Feishu.",
-          "Hard isolation": "Application policy is active, but host isolation must be verified separately.",
+          "External sharing": "Local and trusted-user testing can continue. Untrusted external users require verified host isolation.",
           "Quick test (local)": "Local runtime test can run from this host.",
         };
         return hints[label] || "";
@@ -841,7 +1071,7 @@ export function renderControlPlaneHtml({ homePath = "" } = {}) {
       function renderWorkspace() {
         const current = state.workspaceFiles.find(function (entry) { return entry.path === state.selectedFile; });
         return pageHeader("Workspace", "Review persistent context files and files created by this bot.") +
-          '<div class="grid"><section class="banner warn"><div class="shield" style="color:var(--amber);">!</div><div><h3>Workspace policy limits app writes, but host isolation is not verified.</h3><p class="muted">Current policy: application-only</p></div><div class="actions"><button data-action="go-safety">Review safety policy</button></div></section>' +
+          '<div class="grid"><section class="banner warn"><div class="shield" style="color:var(--amber);">!</div><div><h3>Workspace policy is active. External sharing is restricted.</h3><p class="muted">Local workspace controls are on. Verify host isolation before inviting untrusted users.</p></div><div class="actions"><button data-action="go-safety">Review safety policy</button></div></section>' +
           '<section class="panel">' + kv([["Workspace path", escapeHtml(compactPath((state.detail.detail.paths && state.detail.detail.paths.homePath || "") + "/workspace"))], ["Files", escapeHtml(String(state.workspaceFiles.filter(function (entry) { return entry.type === "file"; }).length))], ["Recent changes (24h)", "0"], ["Workspace policy", chip("application-only", "amber")]]) + '</section>' +
           '<div class="workspace-layout"><section class="panel"><input placeholder="Search files..." /><div class="file-list" id="workspace-tree" style="margin-top:12px;">' + renderWorkspaceTree() + '</div><div class="actions" style="margin-top:12px;"><button>New file</button><button>New folder</button></div></section><section><div class="editor-toolbar"><button id="workspace-open" data-action="workspace-open">Open</button><button class="primary" id="save-workspace" data-action="workspace-save">Save</button><button data-action="workspace-open">Revert</button><button id="quick-test-file-demo" data-action="file-demo">Run quick file demo</button></div><input id="workspace-file-path" value="' + attr(state.selectedFile) + '" /><textarea class="code-editor" id="workspace-editor">' + escapeHtml((state.currentFile && state.currentFile.content) || "Select a file to inspect or edit.") + '</textarea><section class="panel" style="margin-top:12px;"><h3>Last workspace changes</h3>' + table(["Time", "User / Actor", "File", "Change", "Size"], state.workspaceFiles.filter(function (entry) { return entry.type === "file"; }).slice(0, 4).map(function (entry) { return [escapeHtml(formatDate(entry.updatedAt)), "system", escapeHtml(entry.path), "updated", escapeHtml(String(entry.size || 0) + " B")]; }), "No workspace changes yet.") + '</section></section></div></div>';
       }
@@ -851,15 +1081,10 @@ export function renderControlPlaneHtml({ homePath = "" } = {}) {
         }).join("") || '<div class="empty">Workspace is empty.</div>';
       }
       function renderUsers() {
-        const privateUnlocked = state.users.filter(function (user) { return user.privateEnabled; }).length;
-        const banned = state.users.filter(function (user) { return user.status === "banned"; }).length;
-        const paidCredits = state.users.reduce(function (sum, user) { return sum + ((user.credits && user.credits.paidCredits) || 0); }, 0);
-        return pageHeader("Users & Access", "Review users, credits, private access, group access, and bans for this bot.") +
-          '<div class="grid"><div class="grid five">' + [["Total users", state.users.length], ["Private unlocked", privateUnlocked], ["Banned", banned], ["Paid credits", paidCredits], ["Group free quota", "Active"]].map(function (item) { return '<div class="metric"><div class="tiny">' + escapeHtml(item[0]) + '</div><div class="metric-value">' + escapeHtml(item[1]) + '</div></div>'; }).join("") + '</div>' +
-          '<section class="panel"><div class="panel-head"><div class="actions"><input id="operations-user-id" placeholder="@username or user id" value="' + attr(state.selectedUserId) + '" /><button class="primary" id="operations-grant" data-action="operations-grant">Grant credits</button></div><button id="operations-refresh" data-action="refresh">Refresh</button></div><div id="operations-users">' + table(["User", "Channel", "Role", "Private access", "Credits", "Last seen", "Risk", "Actions"], state.users.map(renderUserRow), "No users yet. Invite a user to the group or send a test message from an allowed chat.") + '</div></section>' +
-          '<section class="panel"><h3>Access rules</h3>' + table(["Scope", "Who it applies to", "Direct chat (1:1)", "Group chat", "Notes"], [["Direct chat", "Any user", "Requires private unlock; paid credits required", "—", "Users must unlock private access."], ["Group chat", "Group members", "—", "Free daily quota then paid credits", "Daily quota resets at local midnight."], ["Banned users", "Banned", "Denied", "Denied", "Blocked everywhere."]].map(function (row) { return row.map(escapeHtml); }), "") + '</section>' +
-          '<section class="panel operations-debug"><div class="panel-head"><h3>Operator View</h3><div class="actions"><button id="operations-show-debug">Debug</button><button id="operations-show-operator" class="primary">Operator</button></div></div><div id="operations-selected-user">' + renderSelectedUser() + '</div><div class="form-grid" style="margin-top:12px;"><label>Credits<input id="operations-credit-amount" type="number" value="10" /></label><label>Reason<input id="operations-credit-reason" value="Support request" /></label></div><div class="actions" style="margin-top:12px;"><button id="operations-grant-unlock" data-action="operations-grant-unlock">Grant + Unlock</button><button id="operations-deduct" data-action="operations-deduct">Deduct</button><button id="operations-unlock" data-action="operations-unlock">Unlock Private</button><button id="operations-lock" data-action="operations-lock">Lock Private</button><button id="operations-ban" class="danger" data-action="operations-ban">Ban</button><button id="operations-unban" data-action="operations-unban">Unban</button></div><p class="muted" id="operations-admin-hint">Grant adds paid credits. Grant + Unlock adds paid credits and enables paid direct chat. Ban blocks both group and private chat.</p><div id="operations-admin-result" style="margin-top:12px;">Last Action: none</div></section>' +
-          '<div id="operations-growth-snapshot" class="panel">Waiting for user activity</div><div id="operations-conversion-funnel" class="panel">Trial Lead · Paid Private · next action: use Grant + Unlock. Grant + Unlock is the paid conversion shortcut.</div><div id="operations-conversation-privacy" class="panel">Operations shows redacted previews.</div><div id="operations-metrics" class="panel"></div><div id="operations-usage" class="panel"></div><div id="operations-runs" class="panel"></div></div>';
+        return pageHeader("Users", "Users for the selected bot.") +
+          '<section class="panel"><div class="panel-head"><div><h2>User list</h2><p class="muted">Only users seen by the current bot are shown here.</p></div><button id="operations-refresh" data-action="refresh">Refresh</button></div><div id="operations-users">' +
+          table(["User", "Channel", "Role", "Private access", "Credits", "Last seen", "Risk", "Actions"], state.users.map(renderUserRow), "No users yet. Invite a user to the group or send a test message from an allowed chat.") +
+          '</div></section>';
       }
       function renderUserRow(user) {
         const credits = user.credits || {};
@@ -881,10 +1106,21 @@ export function renderControlPlaneHtml({ homePath = "" } = {}) {
         return kv([["selected", escapeHtml((user.displayName || user.id) + " (" + user.id + ")")], ["status", escapeHtml(user.status)], ["private", escapeHtml(user.privateEnabled ? "unlocked" : "locked")], ["paid credits", escapeHtml(String(credits.paidCredits || 0))], ["next action", "Monitor paid credits, refunds, and risk logs."]]);
       }
       function renderSafety() {
+        const security = securityReadiness();
+        const externalReady = Boolean(security.readyForExternalUsers);
+        const lastProbe = security.lastProbe || {};
+        const probeStatus = lastProbe.status || "not_run";
+        const probeLabel = probeStatus === "not_run" ? "Not run" : probeStatus;
+        const modeLabel = isolationModeLabel(security.mode);
+        const bannerTone = externalReady ? "ok" : "warn";
+        const sharingLabel = externalReady ? "External sharing ready" : "External sharing restricted";
+        const sharingCopy = externalReady
+          ? "Hard isolation has a passing probe. You can invite external users under the current policy."
+          : "Local and trusted-user testing can continue. Before inviting untrusted users, verify host isolation with a separate OS user, container, sandbox, microVM, or remote worker.";
         return pageHeader("Safety", "Verify isolation, review risky conversations, and control what the agent can do.") +
-          '<div class="grid"><section class="banner danger"><div class="shield">!</div><div><h2>External users not ready</h2><p class="muted">Application policy is active, but hard host isolation is not verified. Use a separate OS user, container, sandbox, microVM, or remote worker before inviting untrusted users.</p></div><div class="grid three"><div>' + dot("red") + ' Hard isolation not verified</div><div>' + dot(statusTone(telegramConfig().enabled ? "ready" : "not ready")) + ' Channel ' + (telegramConfig().enabled ? "configured" : "not configured") + '</div><div>' + dot(statusTone(currentBot().status)) + ' Runtime ' + escapeHtml(currentBot().status || "unknown") + '</div></div></section>' +
-          '<div class="grid five">' + [["Isolation", "Application-only", "amber"], ["Workspace policy", "Active", "green"], ["Tool approvals", "Enabled", "green"], ["Unreviewed risks", state.riskLogs.filter(function (event) { return !(event.review && event.review.status); }).length, "red"], ["Last probe", "Failed", "red"]].map(function (item) { return '<div class="metric"><div class="tiny">' + escapeHtml(item[0]) + '</div><div class="metric-value">' + escapeHtml(item[1]) + '</div>' + chip(String(item[1]), item[2]) + '</div>'; }).join("") + '</div>' +
-          '<section class="panel"><h3>1. Isolation readiness</h3>' + table(["Mode", "Verified", "Last probe", "Probe result", "Next action"], [["Application-only", "No", "—", "Failed", "Run an isolation probe to verify host containment."]].map(function (row) { return row.map(escapeHtml); }), "") + '</section>' +
+          '<div class="grid"><section class="banner ' + bannerTone + '"><div class="shield" style="color:' + (externalReady ? 'var(--green)' : 'var(--amber)') + ';">' + (externalReady ? "✓" : "!") + '</div><div><h2>' + escapeHtml(sharingLabel) + '</h2><p class="muted">' + escapeHtml(sharingCopy) + '</p></div><div class="grid three"><div>' + dot(externalReady ? "green" : "amber") + ' External sharing ' + (externalReady ? "ready" : "restricted") + '</div><div>' + dot(statusTone(telegramConfig().enabled ? "ready" : "not ready")) + ' Channel ' + (telegramConfig().enabled ? "configured" : "not configured") + '</div><div>' + dot(statusTone(currentBot().status)) + ' Runtime ' + escapeHtml(currentBot().status || "unknown") + '</div></div></section>' +
+          '<div class="grid five">' + [["External sharing", externalReady ? "Ready" : "Restricted", externalReady ? "green" : "amber"], ["Isolation mode", modeLabel, externalReady ? "green" : "amber"], ["Workspace policy", "Active", "green"], ["Unreviewed risks", state.riskLogs.filter(function (event) { return !(event.review && event.review.status); }).length, "red"], ["Last probe", probeLabel, isolationProbeTone(probeStatus)]].map(function (item) { return '<div class="metric"><div class="tiny">' + escapeHtml(item[0]) + '</div><div class="metric-value">' + escapeHtml(item[1]) + '</div>' + chip(String(item[1]), item[2]) + '</div>'; }).join("") + '</div>' +
+          '<section class="panel"><h3>1. Isolation readiness</h3>' + table(["Mode", "Verified", "Last probe", "Probe result", "Next action"], [[modeLabel, security.verified ? "Yes" : "No", lastProbe.checkedAt ? formatDate(lastProbe.checkedAt) : "-", probeLabel, security.next || "Run an isolation probe before inviting untrusted users."]].map(function (row) { return row.map(escapeHtml); }), "") + '</section>' +
           '<section class="panel"><h3>2. Tool permission policy</h3>' + table(["Capability", "Allowed", "Requires approval", "Risk", "Scope", "Notes"], [["file_write", "No", "Yes", "High", "Workspace", "Writes limited to allowed paths"], ["shell", "No", "Yes", "High", "Runtime container", "OS command execution blocked by default"], ["network", "Yes (restricted)", "Yes", "Medium", "Allowlist", "Outbound allowlist enforced"], ["install_skill", "No", "Yes", "High", "Workspace", "Skill installs require admin approval"]].map(function (row) { return row.map(escapeHtml); }), "") + '</section>' +
           '<section class="panel"><div class="panel-head"><h3>3. Conversation risk review queue</h3><div class="actions"><select id="operations-review-filter"><option value="all">All review</option><option value="unreviewed">Unreviewed</option></select><select id="operations-risk-label-filter"><option value="all">All labels</option><option value="prompt_injection_signal">prompt_injection_signal</option><option value="possible_secret">possible_secret</option></select><input id="operations-risk-user-filter" placeholder="User" /><input id="operations-risk-run-filter" placeholder="Run" /><select id="operations-risk-channel-filter"><option value="all">All channels</option><option value="telegram">Telegram</option><option value="feishu">Feishu</option></select></div></div><div id="operations-conversation-logs">' + table(["Time", "User", "Channel", "Run ID", "Risk label", "Snippet", "Status", "Action"], state.riskLogs.map(renderRiskRow), "No risky conversation logs yet.") + '</div><span class="tiny">riskOnly=true</span></section>' +
           '<section class="panel"><h3>4. Audit and cleanup</h3><div class="form-grid"><label>Delete Logs Before<input id="operations-cleanup-older-than" placeholder="2026-01-01T00:00:00.000Z" /></label></div><div class="actions" style="margin-top:12px;"><button id="operations-cleanup-preview" data-action="cleanup-preview">Preview Cleanup</button><button class="danger" id="operations-cleanup-run" data-action="cleanup-run">Run Cleanup</button></div><p class="muted">Cleanup deletes local raw JSONL conversation events after preview.</p><div id="operations-cleanup-result" style="margin-top:12px;"></div></section></div>';
@@ -913,25 +1149,26 @@ export function renderControlPlaneHtml({ homePath = "" } = {}) {
           '</div><div class="actions" style="margin-top:14px;"><button class="primary" id="save-form-config" data-action="save-form-config">Save settings</button><button id="run-state-migrations" data-action="run-migrations">Run migrations</button></div><details style="margin-top:16px;"><summary>Advanced JSON</summary><textarea id="config-editor">' + escapeHtml(JSON.stringify(config, null, 2)) + '</textarea><div class="actions" style="margin-top:8px;"><button id="save-config" data-action="save-config">Save raw config</button></div></details></section><aside class="panel"><h3>Configuration inspector</h3><div style="margin-top:14px;">' + kv([["Required fields", chip("OK", "green")], ["Runtime settings", chip("OK", "green")], ["Workspace policy", chip("OK", "green")], ["Storage config", chip("OK", "green")], ["Migrations", chip((state.storageReadiness && state.storageReadiness.ready) ? "OK" : "Pending", "amber")], ["Config file", escapeHtml(compactPath((state.detail.detail.paths && state.detail.detail.paths.configPath) || ""))]]) + '</div><hr /><h3>Skills</h3><div class="actions" style="margin-top:8px;"><input id="skill-source-input" placeholder="/path/to/skill-or-zip" /><button id="install-skill" data-action="install-skill">Install Skill</button></div><div id="skills-list" style="margin-top:12px;">' + table(["Skill", "Description"], state.skills.map(function (skill) { return [escapeHtml(skill.id), escapeHtml(skill.description || skill.path || "")]; }), "No skills installed yet.") + '</div></aside></div></div>';
       }
       function renderInspector() {
+        if (!inspectorRoot) return;
         if (!state.detail) {
           inspectorRoot.innerHTML = '<div class="inspector-section"><h3>Inspector</h3><p class="muted">Loading...</p></div>';
           return;
         }
         const bot = currentBot();
         const health = state.detail.health || {};
+        const dashboardTotals = (state.dashboard && state.dashboard.totals) || {};
         const contentByPage = {
-          overview: inspectorFacts("Bot facts", [
-            ["Bot", escapeHtml(botLabel(bot))],
-            ["Home path", escapeHtml(compactPath(bot.homePath))],
-            ["Config file", escapeHtml(compactPath(state.detail.detail.paths.configPath))],
-            ["Model", escapeHtml((currentConfig().runtime && currentConfig().runtime.model) || "gpt-5.4")],
-            ["Runtime", escapeHtml(health.healthy ? "Online" : "Offline")],
-            ["Recent error", health.lastError ? escapeHtml(health.lastError) : '<span style="color:var(--green)">No error.</span>'],
-            ["Migration state", escapeHtml((state.detail.storageReadiness && state.detail.storageReadiness.ready) ? "Up to date" : "Pending")],
-            ["Workspace files", escapeHtml(String(state.workspaceFiles.length))],
-            ["Sessions (7d)", escapeHtml(String(state.sessions.length))],
-          ]) + '<div class="actions"><button data-action="go-workspace">Open in workspace</button></div>',
-          setup: inspectorFacts("Live validation", [["Storage migration", chip(state.detail.storageReadiness && state.detail.storageReadiness.ready ? "OK" : "Action required", state.detail.storageReadiness && state.detail.storageReadiness.ready ? "green" : "red")], ["Telegram connection", chip(telegramConfig().botToken ? "Ready" : "Missing", telegramConfig().botToken ? "green" : "red")], ["Feishu connection", chip(feishuConfig().enabled ? "Ready" : "Optional", feishuConfig().enabled ? "green" : "amber")], ["Hard isolation", chip("Warning", "amber")]]),
+          overview: inspectorFacts("Overview details", [
+            ["Bots", escapeHtml(formatNumber(dashboardTotals.bots))],
+            ["Online bots", escapeHtml(formatNumber(dashboardTotals.runningBots))],
+            ["Users", escapeHtml(formatNumber(dashboardTotals.users))],
+            ["Conversations", escapeHtml(formatNumber(dashboardTotals.conversations))],
+            ["Runs", escapeHtml(formatNumber(dashboardTotals.runs))],
+            ["Workspace", escapeHtml(formatBytes(dashboardTotals.workspaceBytes))],
+            ["Risk events", chip(String(dashboardTotals.riskEvents || 0), dashboardTotals.riskEvents ? "amber" : "green")],
+            ["Current bot", escapeHtml(botLabel(bot))],
+          ]) + '<div class="actions"><button data-action="go-users">Open users</button><button data-action="go-workspace">Open workspace</button></div>',
+          setup: inspectorFacts("Live validation", [["Storage migration", chip(state.detail.storageReadiness && state.detail.storageReadiness.ready ? "OK" : "Action required", state.detail.storageReadiness && state.detail.storageReadiness.ready ? "green" : "red")], ["Telegram connection", chip(telegramConfig().botToken ? "Ready" : "Missing", telegramConfig().botToken ? "green" : "red")], ["Feishu connection", chip(feishuConfig().enabled ? "Ready" : "Optional", feishuConfig().enabled ? "green" : "amber")], ["External sharing", chip(securityReadiness().readyForExternalUsers ? "Ready" : "Restricted", securityReadiness().readyForExternalUsers ? "green" : "amber")]]),
           channels: inspectorFacts(state.channelTab === "feishu" ? "Feishu Inspector" : "Telegram Inspector", [["State", chip(state.channelTab === "feishu" ? (feishuConfig().enabled ? "Configured" : "Not configured") : (telegramConfig().enabled ? "Paired" : "Unpaired"), state.channelTab === "feishu" ? (feishuConfig().enabled ? "green" : "amber") : (telegramConfig().enabled ? "green" : "red"))], ["Bot token", escapeHtml(telegramConfig().botToken ? "Stored securely" : "Missing")], ["Bot username", escapeHtml(telegramConfig().botUsername || "None")], ["Mention required", escapeHtml(String((telegramConfig().groups || {}).requireExplicitMention !== false))], ["Last error", health.lastError ? escapeHtml(health.lastError) : "-"]]) + '<div class="inspector-section"><h3>BotFather tips</h3><p class="muted">Create a bot with @BotFather, copy the token, paste it here, then run Pair / Re-pair.</p></div>',
           runs: renderRunInspector(),
           workspace: inspectorFacts("File Inspector", [["File", escapeHtml(state.selectedFile || "-")], ["Path", escapeHtml(compactPath((bot.homePath || "") + "/workspace/" + (state.selectedFile || "")))], ["Writable", chip("Yes (within policy)", "green")], ["Path status", chip("Allowed", "green")], ["Safety mode", chip("application-only", "amber")]]),
@@ -987,6 +1224,9 @@ export function renderControlPlaneHtml({ homePath = "" } = {}) {
       async function loadBots() {
         const snapshot = await request("/api/bots");
         state.bots = snapshot.bots || [];
+        state.botHealth = Object.fromEntries((snapshot.health || []).map(function (item) {
+          return [item.id, item.health || item];
+        }));
         state.currentBotId = snapshot.currentBotId || ((state.bots.find(function (bot) { return bot.isCurrent; }) || state.bots[0] || {}).id || null);
         if (!state.selectedBotId) state.selectedBotId = state.currentBotId;
       }
@@ -1022,6 +1262,48 @@ export function renderControlPlaneHtml({ homePath = "" } = {}) {
         state.chat = value(results[10], null);
       }
       function value(result, fallback) { return result.status === "fulfilled" ? result.value : fallback; }
+      async function loadDashboard() {
+        const botSummaries = await Promise.all(state.bots.map(async function (bot) {
+          const botId = encodeURIComponent(bot.id);
+          const results = await Promise.allSettled([
+            request("/api/bots/" + botId + "/metrics"),
+            request("/api/bots/" + botId + "/runs?limit=100"),
+            request("/api/bots/" + botId + "/users"),
+            request("/api/bots/" + botId + "/workspace"),
+            request("/api/bots/" + botId + "/sessions"),
+          ]);
+          const metrics = value(results[0], null) || {};
+          const runs = safeArray(value(results[1], []));
+          const users = safeArray(value(results[2], []));
+          const workspaceFiles = safeArray(value(results[3], []));
+          const sessionsPayload = value(results[4], { sessions: [] }) || {};
+          const runStatusCounts = metrics.runStatusCounts || {};
+          const conversationTotals = metrics.conversationTotals || {};
+          const creditTotals = metrics.creditTotals || {};
+          const health = state.botHealth[bot.id] || {};
+          const runtimeStatus = bot.status === "running" || health.healthy ? "running" : (bot.status || "stopped");
+          return {
+            id: bot.id,
+            name: bot.name || bot.id,
+            enabled: bot.enabled !== false,
+            runtimeStatus,
+            users: (metrics.totals && metrics.totals.users) ?? users.length,
+            conversations: conversationTotals.inputs || conversationTotals.totalInputs || 0,
+            runs: (metrics.totals && metrics.totals.runs) ?? runs.length,
+            activeRuns: (runStatusCounts.running || 0) + (runStatusCounts.queued || 0),
+            completedRuns: runStatusCounts.completed || runStatusCounts.succeeded || 0,
+            failedRuns: runStatusCounts.failed || 0,
+            workspaceFiles: workspaceFiles.filter(function (entry) { return entry.type === "file"; }).length,
+            workspaceBytes: workspaceFileSize(workspaceFiles),
+            sessions: safeArray(sessionsPayload.sessions).length,
+            paidCreditsCharged: creditTotals.paidCreditsCharged || 0,
+            paidCreditsGranted: creditTotals.paidCreditsGranted || 0,
+            riskEvents: conversationTotals.riskyEvents || 0,
+            latestRunAt: latestRunAt(runs),
+          };
+        }));
+        state.dashboard = buildDashboard(botSummaries);
+      }
       async function reloadAll() {
         try {
           await loadBots();
@@ -1029,6 +1311,7 @@ export function renderControlPlaneHtml({ homePath = "" } = {}) {
             await loadDetail(state.selectedBotId);
             await loadPageData(state.selectedBotId);
           }
+          await loadDashboard();
           renderAll();
         } catch (error) {
           pageRoot.innerHTML = '<div class="banner danger"><div class="shield">!</div><div><h2>Control plane failed to load</h2><p class="muted">' + escapeHtml(error.message) + '</p></div></div>';
@@ -1180,8 +1463,10 @@ export function renderControlPlaneHtml({ homePath = "" } = {}) {
         const useSession = event.target.closest("[data-use-session]");
         const selectUser = event.target.closest("[data-select-user]");
         const review = event.target.closest("[data-review-risk]");
+        const dashboardBot = event.target.closest("[data-dashboard-bot]");
         try {
           if (nav) { state.page = nav.dataset.nav; renderAll(); return; }
+          if (dashboardBot) { state.selectedBotId = dashboardBot.dataset.dashboardBot; await reloadAll(); return; }
           if (openFile) { await openWorkspaceFile(openFile.dataset.openFile); return; }
           if (demo) { const item = workspaceDemoPrompts.find(function (candidate) { return candidate.id === demo.dataset.demoPrompt; }); state.page = "runs"; renderAll(); document.getElementById("chat-input").value = item ? item.prompt : quickTestPrompt; return; }
           if (allowTelegram) { await request("/api/bots/" + state.selectedBotId + "/telegram/access", { method: "POST", body: JSON.stringify({ accessType: allowTelegram.dataset.allowTelegram, id: allowTelegram.dataset.id }) }); await reloadAll(); return; }
@@ -1192,7 +1477,9 @@ export function renderControlPlaneHtml({ homePath = "" } = {}) {
           const name = action.dataset.action;
           if (name === "go-channels") { state.page = "channels"; state.channelTab = "telegram"; renderAll(); }
           else if (name === "go-feishu") { state.page = "channels"; state.channelTab = "feishu"; renderAll(); }
+          else if (name === "go-bots") { state.page = "bots"; renderAll(); }
           else if (name === "go-runs") { state.page = "runs"; renderAll(); }
+          else if (name === "go-users") { state.page = "users"; renderAll(); }
           else if (name === "go-workspace") { state.page = "workspace"; renderAll(); }
           else if (name === "go-safety") { state.page = "safety"; renderAll(); }
           else if (name === "go-setup") { state.page = "setup"; renderAll(); }
@@ -1202,6 +1489,7 @@ export function renderControlPlaneHtml({ homePath = "" } = {}) {
           else if (name === "restart-runtime") await mutateBot("restart");
           else if (name === "stop-runtime") await mutateBot("stop");
           else if (name === "refresh") await reloadAll();
+          else if (name === "open-create-bot") { createBotModal.style.display = "flex"; }
           else if (name === "quick-test") await runQuickTest("smoke");
           else if (name === "file-demo") await runQuickTest("workspace_file_demo");
           else if (name === "save-telegram") await saveTelegramSettings();
@@ -1232,14 +1520,21 @@ export function renderControlPlaneHtml({ homePath = "" } = {}) {
           showToast(error.message || "Action failed");
         }
       });
-      document.getElementById("bot-select").addEventListener("change", async function (event) {
-        state.selectedBotId = event.target.value;
-        await reloadAll();
-      });
-      document.getElementById("action-start").onclick = function () { mutateBot("start"); };
-      document.getElementById("action-restart").onclick = function () { mutateBot("restart"); };
-      document.getElementById("action-stop").onclick = function () { mutateBot("stop"); };
-      document.getElementById("open-create-bot").onclick = function () { createBotModal.style.display = "flex"; };
+      const botSelect = document.getElementById("bot-select");
+      if (botSelect) {
+        botSelect.addEventListener("change", async function (event) {
+          state.selectedBotId = event.target.value;
+          await reloadAll();
+        });
+      }
+      const actionStart = document.getElementById("action-start");
+      const actionRestart = document.getElementById("action-restart");
+      const actionStop = document.getElementById("action-stop");
+      const openCreateBot = document.getElementById("open-create-bot");
+      if (actionStart) actionStart.onclick = function () { mutateBot("start"); };
+      if (actionRestart) actionRestart.onclick = function () { mutateBot("restart"); };
+      if (actionStop) actionStop.onclick = function () { mutateBot("stop"); };
+      if (openCreateBot) openCreateBot.onclick = function () { createBotModal.style.display = "flex"; };
       document.getElementById("close-create-bot").onclick = function () { createBotModal.style.display = "none"; };
       document.getElementById("submit-create-bot").onclick = async function () {
         const id = document.getElementById("create-bot-id").value.trim();
@@ -1281,6 +1576,7 @@ export function renderControlPlaneHtml({ homePath = "" } = {}) {
 </html>`;
 }
 
-function navButton(page, glyph, label, badgeId = "") {
-  return `<button class="${page === "overview" ? "active" : ""}" data-nav="${page}"><span class="nav-glyph">${glyph}</span><span>${label}</span><span class="nav-badge" id="${badgeId}" style="display:none;"></span></button>`;
+function navButton(page, label, badgeId = "") {
+  const badge = badgeId ? `<span class="nav-badge" id="${badgeId}" style="display:none;"></span>` : "";
+  return `<button class="${page === "overview" ? "active" : ""}" data-nav="${page}"><span>${label}</span>${badge}</button>`;
 }

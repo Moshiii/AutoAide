@@ -1,7 +1,7 @@
 {
   "name": "codexbridge",
   "version": "0.1.0-alpha.7",
-  "description": "General-purpose AI assistant runtime with a persistent file workspace.",
+  "description": "Managed team access layer for Codex with Feishu, Telegram, credits, audit logs, and persistent workspaces.",
   "license": "MIT",
   "type": "module",
   "repository": {
