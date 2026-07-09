@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc">
+  <title id="title">Feishu team chat placeholder</title>
+  <desc id="desc">Placeholder screenshot for a Feishu chat where a user asks CodexBridge for help and the bot replies.</desc>
+  <rect width="1280" height="720" fill="#f5f7fb"/>
+  <rect x="80" y="60" width="1120" height="600" rx="18" fill="#ffffff" stroke="#d8dee9"/>
+  <rect x="80" y="60" width="1120" height="64" rx="18" fill="#eef3ff"/>
+  <text x="120" y="102" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#102033">Feishu team chat</text>
+  <circle cx="144" cy="210" r="32" fill="#dbeafe"/>
+  <text x="200" y="202" font-family="Arial, sans-serif" font-size="18" fill="#526173">Mia Zhang</text>
+  <rect x="200" y="220" width="430" height="62" rx="14" fill="#dbeafe"/>
+  <text x="224" y="258" font-family="Arial, sans-serif" font-size="22" fill="#102033">@codexbridge summarize this spec</text>
+  <circle cx="144" cy="378" r="32" fill="#2563eb"/>
+  <text x="200" y="370" font-family="Arial, sans-serif" font-size="18" fill="#526173">codexbridge bot</text>
+  <rect x="200" y="388" width="720" height="130" rx="14" fill="#f1f5f9"/>
+  <text x="224" y="430" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="#102033">Running Codex in managed workspace...</text>
+  <text x="224" y="468" font-family="Arial, sans-serif" font-size="20" fill="#334155">I found the main requirements, risks, and next steps.</text>
+  <text x="224" y="506" font-family="Arial, sans-serif" font-size="20" fill="#334155">Usage: 1 credit · Audit logged · Session resumed</text>
+  <rect x="200" y="552" width="260" height="44" rx="10" fill="#e0ecff" stroke="#bfdbfe"/>
+  <text x="224" y="581" font-family="Arial, sans-serif" font-size="18" fill="#1d4ed8">Open run details</text>
+  <text x="965" y="628" font-family="Arial, sans-serif" font-size="16" fill="#94a3b8">Replace with real Feishu screenshot</text>
+</svg>

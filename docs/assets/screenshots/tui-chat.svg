@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc">
+  <title id="title">Local TUI chat placeholder</title>
+  <desc id="desc">Placeholder screenshot for the CodexBridge terminal UI.</desc>
+  <rect width="1280" height="720" fill="#111827"/>
+  <rect x="70" y="60" width="1140" height="110" fill="#111827" stroke="#6b7280" stroke-width="2"/>
+  <text x="96" y="104" font-family="Menlo, Consolas, monospace" font-size="24" font-weight="700" fill="#f9fafb">&gt;_ CodexBridge</text>
+  <text x="96" y="146" font-family="Menlo, Consolas, monospace" font-size="20" fill="#d1d5db">bot: default    model: gpt-5.4    runtime: online    channel: feishu</text>
+  <text x="80" y="224" font-family="Menlo, Consolas, monospace" font-size="22" fill="#e5e7eb">* Multi-turn Codex session is live</text>
+  <rect x="80" y="270" width="1120" height="54" fill="#f3f4f6"/>
+  <text x="98" y="304" font-family="Menlo, Consolas, monospace" font-size="22" fill="#111827">&gt; write a short onboarding checklist</text>
+  <text x="80" y="380" font-family="Menlo, Consolas, monospace" font-size="22" fill="#f9fafb">* Running Codex turn</text>
+  <text x="80" y="424" font-family="Menlo, Consolas, monospace" font-size="22" fill="#d1d5db">* Session resumed for default/main</text>
+  <text x="80" y="468" font-family="Menlo, Consolas, monospace" font-size="22" fill="#d1d5db">* Created docs/onboarding-checklist.md</text>
+  <line x1="80" y1="520" x2="1200" y2="520" stroke="#6b7280"/>
+  <text x="80" y="558" font-family="Menlo, Consolas, monospace" font-size="20" fill="#9ca3af">- Worked for 00:12</text>
+  <rect x="80" y="598" width="1120" height="54" fill="#f3f4f6"/>
+  <text x="98" y="632" font-family="Menlo, Consolas, monospace" font-size="22" fill="#9ca3af">&gt; Improve documentation in @filename</text>
+  <text x="80" y="690" font-family="Menlo, Consolas, monospace" font-size="18" fill="#f59e0b">gpt-5.4 · ~/.codexbridge/bots/default</text>
+</svg>
