@@ -10,6 +10,7 @@ import {
   writeFeishuRouterState,
 } from "./router-state.mjs";
 import { runPreparedFeishuCodexTurn } from "./prepared-runner.mjs";
+import { FEISHU_TYPING_REACTION } from "./client.mjs";
 
 export function renderFeishuUnsupportedPayloadMessage() {
   return [
@@ -77,6 +78,20 @@ async function appendLogSafely(appendLog, payload, botHome) {
   }
 }
 
+async function addRunningReactionSafely(sendReaction, messageId) {
+  if (typeof sendReaction !== "function" || !messageId) {
+    return;
+  }
+  try {
+    await sendReaction({
+      messageId,
+      emojiType: FEISHU_TYPING_REACTION,
+    });
+  } catch {
+    // A missing reaction scope should not prevent the final assistant reply.
+  }
+}
+
 export async function handleFeishuTextMessageFlow({
   event,
   botHome,
@@ -87,6 +102,7 @@ export async function handleFeishuTextMessageFlow({
   commandConfig = {},
   activeRuns = new Map(),
   sendText,
+  sendReaction,
   deps = {},
 } = {}) {
   if (typeof sendText !== "function") {
@@ -221,12 +237,7 @@ export async function handleFeishuTextMessageFlow({
     chatId,
     messageId,
     onRunning: async () => {
-      const response = await sendText({
-        chatId,
-        replyToMessageId: messageId,
-        text: renderFeishuRunningMessage(chatState.sessionLabel, Boolean(chatState.cliSessionRef)),
-      });
-      rememberBotOpenId(botIdentity, response);
+      await addRunningReactionSafely(sendReaction, messageId);
     },
   });
 

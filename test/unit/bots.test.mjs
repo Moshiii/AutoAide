@@ -79,6 +79,19 @@ test("startBot rejects bots without configured Telegram runtime", async () => {
   });
 });
 
+test("summarizeStartupFailureLog extracts the bridge error summary", async () => {
+  await withTempHome(async () => {
+    const { summarizeStartupFailureLog } = await importFresh("../../src/bots.mjs");
+
+    const summary = summarizeStartupFailureLog(`
+      Error: Feishu channel requires @larksuiteoapi/node-sdk.
+          at loadFeishuSdk (src/feishu/sdk-loader.mjs:28:23)
+    `);
+
+    assert.equal(summary, "Feishu channel requires @larksuiteoapi/node-sdk.");
+  });
+});
+
 test("healthCheckBot returns observability metadata for stopped bots", async () => {
   await withTempHome(async (tempHome) => {
     const { createBot, healthCheckBot } = await importFresh("../../src/bots.mjs");
@@ -207,10 +220,10 @@ test("runBotRuntime shuts down the Telegram bridge when the runtime receives SIG
   });
 });
 
-test("codexbridge starts the configured default bot before entering the CLI", async () => {
+test("codexbridge does not start a configured default bot before entering the management CLI", async () => {
   await withTempHome(async (tempHome) => {
     const { readConfig } = await importFresh("../../src/config.mjs");
-    const { ensureDefaultBot, readPidFile, updateBotConfig } = await importFresh("../../src/bots.mjs");
+    const { ensureDefaultBot, updateBotConfig } = await importFresh("../../src/bots.mjs");
 
     const entry = path.join(process.cwd(), "bin", "codexbridge.mjs");
     const botHome = path.join(tempHome, "bots", "default");
@@ -240,16 +253,10 @@ test("codexbridge starts the configured default bot before entering the CLI", as
     });
 
     try {
-      let startedAt = null;
-      for (let attempt = 0; attempt < 50; attempt += 1) {
-        startedAt = (await readConfig(botHome)).observability?.lastStartedAt || null;
-        if (startedAt) {
-          break;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 150));
-      }
-
-      assert.ok(startedAt, "expected default bot runtime to start on CLI launch");
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      const config = await readConfig(botHome);
+      assert.equal(config.observability?.lastStartedAt, null);
+      assert.equal(config.status, "stopped");
     } finally {
       cli.kill("SIGTERM");
       await once(cli, "exit").catch(() => {});
@@ -302,7 +309,7 @@ test("codexbridge does not start a configured default bot when it is disabled", 
   });
 });
 
-test("codexbridge starts the configured active bot before entering the CLI", async () => {
+test("codexbridge does not start a configured active bot before entering the management CLI", async () => {
   await withTempHome(async (tempHome) => {
     const { readConfig } = await importFresh("../../src/config.mjs");
     const { createBot, setActiveBot, updateBotConfig } = await importFresh("../../src/bots.mjs");
@@ -336,16 +343,10 @@ test("codexbridge starts the configured active bot before entering the CLI", asy
     });
 
     try {
-      let startedAt = null;
-      for (let attempt = 0; attempt < 50; attempt += 1) {
-        startedAt = (await readConfig(botHome)).observability?.lastStartedAt || null;
-        if (startedAt) {
-          break;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 150));
-      }
-
-      assert.ok(startedAt, "expected active bot runtime to start on CLI launch");
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      const config = await readConfig(botHome);
+      assert.equal(config.observability?.lastStartedAt, null);
+      assert.equal(config.status, "stopped");
     } finally {
       cli.kill("SIGTERM");
       await once(cli, "exit").catch(() => {});

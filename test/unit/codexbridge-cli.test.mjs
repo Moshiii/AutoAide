@@ -5,7 +5,7 @@ import path from "node:path";
 
 import { withTempHome } from "../helpers/module.js";
 
-function runCodexBridge(args = [], { env = {} } = {}) {
+function runCodexBridge(args = [], { env = {}, stdin = null } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [path.join(process.cwd(), "bin", "codexbridge.mjs"), ...args], {
       cwd: process.cwd(),
@@ -13,7 +13,7 @@ function runCodexBridge(args = [], { env = {} } = {}) {
         ...process.env,
         ...env,
       },
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ["pipe", "pipe", "pipe"],
     });
     let stdout = "";
     let stderr = "";
@@ -29,6 +29,18 @@ function runCodexBridge(args = [], { env = {} } = {}) {
     child.on("exit", (code, signal) => {
       resolve({ code, signal, stdout, stderr });
     });
+    if (Array.isArray(stdin)) {
+      let delay = 0;
+      for (const chunk of stdin) {
+        setTimeout(() => child.stdin.write(chunk), delay);
+        delay += 500;
+      }
+      setTimeout(() => child.stdin.end(), delay);
+    } else if (stdin == null) {
+      child.stdin.end();
+    } else {
+      child.stdin.end(stdin);
+    }
   });
 }
 
@@ -67,6 +79,52 @@ test("codexbridge does not print the startup logo outside an interactive TTY", a
     assert.equal(result.code, 0);
     assert.doesNotMatch(result.stdout, /░██████/);
     assert.doesNotMatch(result.stdout, /personal AI shell/);
+    assert.equal(result.stderr, "");
+  });
+});
+
+test("codexbridge management CLI sends plain text to TUI guidance", async () => {
+  await withTempHome(async (tempHome) => {
+    const result = await runCodexBridge([], {
+      env: { CODEXBRIDGE_HOME: tempHome },
+      stdin: "hello\n",
+    });
+
+    assert.equal(result.code, 0);
+    assert.match(result.stdout, /Chat Moved to TUI/);
+    assert.match(result.stdout, /codexbridge tui/);
+    assert.doesNotMatch(result.stdout, /Running on/);
+    assert.equal(result.stderr, "");
+  });
+});
+
+test("codexbridge bot picker only lists bots and new bot", async () => {
+  await withTempHome(async (tempHome) => {
+    const result = await runCodexBridge([], {
+      env: { CODEXBRIDGE_HOME: tempHome },
+      stdin: "/bots\nq\n/exit\n",
+    });
+
+    assert.equal(result.code, 0);
+    assert.match(result.stdout, /Bots/);
+    assert.match(result.stdout, /default\s+Default \[current, disabled, offline, telegram\]/);
+    assert.match(result.stdout, /new bot/);
+    assert.doesNotMatch(result.stdout, /rename/);
+    assert.doesNotMatch(result.stdout, /enable\/disable/);
+    assert.equal(result.stderr, "");
+  });
+});
+
+test("codexbridge menu reports runtime start failures", async () => {
+  await withTempHome(async (tempHome) => {
+    const result = await runCodexBridge([], {
+      env: { CODEXBRIDGE_HOME: tempHome },
+      stdin: ["/menu\n", "2\n", "/exit\n"],
+    });
+
+    assert.equal(result.code, 0);
+    assert.match(result.stdout, /Runtime Start Failed/);
+    assert.match(result.stdout, /Telegram is not configured/);
     assert.equal(result.stderr, "");
   });
 });

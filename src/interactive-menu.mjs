@@ -104,7 +104,7 @@ export function parseTextMenuResponse(answer, items, options = {}) {
 }
 
 function isReadlineAbortError(error) {
-  return error?.code === "ABORT_ERR" || error?.name === "AbortError";
+  return error?.code === "ABORT_ERR" || error?.name === "AbortError" || error?.message === "readline was closed";
 }
 
 function buildClackOptions(items, shortcuts) {

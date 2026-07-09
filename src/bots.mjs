@@ -93,6 +93,15 @@ function summarizeBot(bot, runtimePid = null) {
   };
 }
 
+export function summarizeStartupFailureLog(content) {
+  const lines = String(content || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const errorLine = lines.find((line) => line.startsWith("Error:")) || lines[0] || "";
+  return errorLine.replace(/^Error:\s*/, "");
+}
+
 export { readPidFile } from "./pid-files.mjs";
 
 async function writePidFile(filePath) {
@@ -173,6 +182,22 @@ async function markBotStoppedWithError(bot, errorMessage = null) {
     botUsername: nextConfig.channels?.telegram?.botUsername || bot.botUsername || "",
     lastError: errorMessage,
   });
+}
+
+async function readStartupFailureReason(bot) {
+  const logPaths = [getChannelBridgeLogPath(bot.channel, bot.homePath), getBotRuntimeLogPath(bot.homePath)];
+  for (const logPath of logPaths) {
+    try {
+      const content = await readFile(logPath, "utf8");
+      const summary = summarizeStartupFailureLog(content.slice(-12000));
+      if (summary) {
+        return summary;
+      }
+    } catch {
+      // Startup may fail before one of the logs exists.
+    }
+  }
+  return "";
 }
 
 async function getRegistryBotOrThrow(botId) {
@@ -377,8 +402,10 @@ export async function startBot(botId) {
     }
     await new Promise((resolve) => setTimeout(resolve, 150));
   }
-  await markBotStoppedWithError(bot, `Bot failed to start: ${botId}`);
-  throw new Error(`Bot failed to start: ${botId}`);
+  const reason = await readStartupFailureReason(bot);
+  const errorMessage = reason ? `Bot failed to start: ${botId}. ${reason}` : `Bot failed to start: ${botId}`;
+  await markBotStoppedWithError(bot, errorMessage);
+  throw new Error(errorMessage);
 }
 
 export async function stopBot(botId) {
@@ -580,12 +607,16 @@ export async function runBotRuntime(botId) {
   await bridgeLog.close();
 
   child.on("exit", async (code, signal) => {
+    const reason = code === 0 || signal === "SIGTERM" || signal === "SIGINT" ? "" : await readStartupFailureReason(bot);
     const latest = await readConfig(botHome);
     latest.status = "stopped";
     latest.observability = {
       ...latest.observability,
       lastStoppedAt: nowIso(),
-      lastError: code === 0 || signal === "SIGTERM" || signal === "SIGINT" ? null : `bridge exited (${code ?? signal})`,
+      lastError:
+        code === 0 || signal === "SIGTERM" || signal === "SIGINT"
+          ? null
+          : reason || `bridge exited (${code ?? signal})`,
     };
     await writeConfig(latest, botHome);
     await replaceRegistryBot({

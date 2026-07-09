@@ -18,6 +18,7 @@ async function createFlowHarness() {
     botHome: path.join(root, "bot"),
     routerStatePath: path.join(root, "feishu", "router.json"),
     sent: [],
+    reactions: [],
     logs: [],
     sendText: async (payload) => {
       const response = {
@@ -50,6 +51,10 @@ test("Feishu message flow runs private text through prepare, runner, logs, and r
     sendText: async (payload) => {
       harness.sent.push(payload);
       return harness.sendText(payload);
+    },
+    sendReaction: async (payload) => {
+      harness.reactions.push(payload);
+      return { data: { reaction_id: "react_flow_1" } };
     },
     deps: {
       prepareChatRequest: async (request) => {
@@ -88,9 +93,9 @@ test("Feishu message flow runs private text through prepare, runner, logs, and r
   assert.equal(botIdentity.openId, "ou_bot_fixture");
   assert.deepEqual(calls.map((call) => call[0]), ["prepare", "run"]);
   assert.match(calls[0][3], /hello codexbridge/);
-  assert.equal(harness.sent.length, 2);
-  assert.match(harness.sent[0].text, /Running Codex/);
-  assert.equal(harness.sent[1].text, "flow done");
+  assert.deepEqual(harness.reactions, [{ messageId: "om_private_fixture", emojiType: "Typing" }]);
+  assert.equal(harness.sent.length, 1);
+  assert.equal(harness.sent[0].text, "flow done");
   assert.deepEqual(harness.logs.map((item) => item.direction), ["input", "output"]);
   assert.equal(harness.logs[1].metadata.ok, true);
 });
@@ -158,6 +163,10 @@ test("Feishu message flow replies with failed output and writes output log", asy
       harness.sent.push(payload);
       return {};
     },
+    sendReaction: async (payload) => {
+      harness.reactions.push(payload);
+      return { data: { reaction_id: "react_flow_failed" } };
+    },
     deps: {
       prepareChatRequest: async () => ({
         ok: true,
@@ -186,8 +195,9 @@ test("Feishu message flow replies with failed output and writes output log", asy
   });
 
   assert.equal(result.action, "failed");
-  assert.equal(harness.sent.length, 2);
-  assert.match(harness.sent[1].text, /agent failed/);
+  assert.deepEqual(harness.reactions, [{ messageId: "om_private_fixture", emojiType: "Typing" }]);
+  assert.equal(harness.sent.length, 1);
+  assert.match(harness.sent[0].text, /agent failed/);
   assert.equal(harness.logs.at(-1).direction, "output");
   assert.equal(harness.logs.at(-1).metadata.ok, false);
 });

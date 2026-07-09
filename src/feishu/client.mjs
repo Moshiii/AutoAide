@@ -6,6 +6,8 @@ export function normalizeFeishuText(text) {
   return trimmed.length > 3500 ? `${trimmed.slice(0, 3497)}...` : trimmed;
 }
 
+export const FEISHU_TYPING_REACTION = "Typing";
+
 export async function sendFeishuText(client, chatId, text, options = {}) {
   const content = JSON.stringify({ text: normalizeFeishuText(text) });
   if (options.replyToMessageId) {
@@ -54,6 +56,19 @@ export async function sendFeishuCard(client, chatId, card, options = {}) {
       receive_id: chatId,
       msg_type: "interactive",
       content,
+    },
+  });
+}
+
+export async function addFeishuReaction(client, messageId, emojiType = FEISHU_TYPING_REACTION) {
+  return await client.im.messageReaction.create({
+    path: {
+      message_id: messageId,
+    },
+    data: {
+      reaction_type: {
+        emoji_type: emojiType,
+      },
     },
   });
 }

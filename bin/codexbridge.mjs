@@ -26,7 +26,7 @@ import {
   updateBotConfig,
 } from "../src/bots.mjs";
 import { readActiveBotId, readConfig } from "../src/config.mjs";
-import { getChannelAdapter } from "../src/channel-adapters.mjs";
+import { runTuiTurn } from "../src/tui-turn-service.mjs";
 import {
   formatSkillInstallResult,
   formatSkillsOverview,
@@ -76,6 +76,7 @@ function printUsage() {
     "  codexbridge",
     "  codexbridge web [status|stop|restart] [--host <host>] [--port <port>]",
     "  codexbridge tui",
+    "  codexbridge tui-turn <bot-id>",
     "  codexbridge bot <create|show|use|current|run|start|stop|restart|enable|disable|delete|logs|config|set-config|health> ...",
     "  codexbridge bots",
     "  codexbridge skills [list|install <zip-or-path>]",
@@ -88,6 +89,15 @@ function printUsage() {
     "",
     "Set CODEXBRIDGE_DEBUG=1 to print stack traces for unexpected errors.",
   ].join("\n"));
+}
+
+async function readStdin() {
+  let input = "";
+  process.stdin.setEncoding("utf8");
+  for await (const chunk of process.stdin) {
+    input += chunk;
+  }
+  return input;
 }
 
 function runRatatui() {
@@ -149,24 +159,6 @@ function deepMergeConfig(base, patch) {
   return merged;
 }
 
-async function ensureConfiguredCurrentBotOnline() {
-  const activeBot = await getActiveBot();
-  if (activeBot.runtimePid) {
-    return;
-  }
-
-  const config = await readConfig(activeBot.homePath);
-  if (!config.enabled) {
-    return;
-  }
-  const adapter = getChannelAdapter(activeBot.channel);
-  if (!adapter?.isConfigured(config)) {
-    return;
-  }
-
-  await startBot(activeBot.id);
-}
-
 function isReadlineAbortError(error) {
   return error?.code === "ABORT_ERR" || error?.name === "AbortError";
 }
@@ -214,6 +206,13 @@ async function main() {
   if (command === "tui") {
     runRatatui();
     await new Promise(() => {});
+  }
+
+  if (command === "tui-turn") {
+    const botId = subcommand || await readActiveBotId();
+    const prompt = await readStdin();
+    printJson(await runTuiTurn(botId, prompt));
+    process.exit(0);
   }
 
   if (command === "skills") {
@@ -361,10 +360,6 @@ async function main() {
     }
     console.error("Usage: codexbridge rollout <restart-all|canary|rollback> ...");
     process.exit(1);
-  }
-
-  if (!command) {
-    await ensureConfiguredCurrentBotOnline();
   }
 
   await startCli({ botId: await readActiveBotId() });

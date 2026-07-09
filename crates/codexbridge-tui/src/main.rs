@@ -1,8 +1,10 @@
 use std::{
     env,
-    io::{self, Stdout},
-    process::Command,
-    time::Duration,
+    io::{self, Stdout, Write},
+    process::{Command, Stdio},
+    sync::mpsc::{self, Receiver, TryRecvError},
+    thread,
+    time::{Duration, Instant},
 };
 
 use anyhow::{anyhow, Context, Result};
@@ -50,9 +52,32 @@ enum TranscriptItem {
     Divider(String),
 }
 
+#[derive(Clone)]
 struct Bridge {
     node_bin: String,
     bridge_bin: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct TuiTurnResponse {
+    ok: bool,
+    output: String,
+    error: Option<String>,
+    #[serde(rename = "sessionLabel")]
+    session_label: String,
+    #[serde(rename = "cliSessionRef")]
+    cli_session_ref: Option<String>,
+    resumed: bool,
+    statuses: Vec<String>,
+}
+
+struct RunningTurn {
+    started: Instant,
+    receiver: Receiver<TurnOutcome>,
+}
+
+struct TurnOutcome {
+    result: std::result::Result<TuiTurnResponse, String>,
 }
 
 impl Bridge {
@@ -97,6 +122,34 @@ impl Bridge {
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
     }
 
+    fn run_with_input(&self, args: &[&str], input: &str) -> Result<String> {
+        let mut child = Command::new(&self.node_bin)
+            .arg(&self.bridge_bin)
+            .args(args)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .with_context(|| format!("failed to run {} {}", self.node_bin, self.bridge_bin))?;
+
+        if let Some(stdin) = child.stdin.as_mut() {
+            stdin
+                .write_all(input.as_bytes())
+                .context("failed to send prompt to codexbridge")?;
+        }
+
+        let output = child
+            .wait_with_output()
+            .context("failed to wait for codexbridge")?;
+        if !output.status.success() {
+            return Err(anyhow!(
+                "{}",
+                String::from_utf8_lossy(&output.stderr).trim().to_string()
+            ));
+        }
+        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    }
+
     fn json<T: for<'de> Deserialize<'de>>(&self, args: &[&str]) -> Result<T> {
         let stdout = self.run(args)?;
         serde_json::from_str(&stdout)
@@ -123,6 +176,11 @@ impl Bridge {
     fn stop_bot(&self, id: &str) -> Result<()> {
         self.run(&["bot", "stop", id]).map(|_| ())
     }
+
+    fn run_turn(&self, id: &str, prompt: &str) -> Result<TuiTurnResponse> {
+        let stdout = self.run_with_input(&["tui-turn", id], prompt)?;
+        serde_json::from_str(&stdout).context("invalid JSON from codexbridge tui-turn")
+    }
 }
 
 struct App {
@@ -135,6 +193,7 @@ struct App {
     transcript: Vec<TranscriptItem>,
     should_quit: bool,
     codex_status: String,
+    running_turn: Option<RunningTurn>,
 }
 
 impl App {
@@ -157,12 +216,13 @@ impl App {
                     "Ready. Type a request, or use /bots to switch bots.".to_string(),
                 ),
                 TranscriptItem::Status(
-                    "Prompt execution bridge is pending; runtime and bot commands are live."
+                    "Multi-turn Codex session is live; each reply resumes the current bot thread."
                         .to_string(),
                 ),
             ],
             should_quit: false,
             codex_status: codex_cli_status(),
+            running_turn: None,
         })
     }
 
@@ -260,16 +320,89 @@ impl App {
                 self.push_item(TranscriptItem::Warning(format!("Unknown command: {text}")));
             }
             _ => {
-                self.push_item(TranscriptItem::ToolStart(
-                    "Preparing Codex turn".to_string(),
-                ));
-                self.push_item(TranscriptItem::Assistant(format!(
-                    "Prompt captured for {}. One-shot execution bridge is next.",
-                    self.current.id
-                )));
-                self.push_item(TranscriptItem::Divider("Worked for 00:00".to_string()));
+                if self.running_turn.is_some() {
+                    self.push_item(TranscriptItem::Warning(
+                        "main is already running. Wait for it to finish.".to_string(),
+                    ));
+                    return;
+                }
+                self.push_item(TranscriptItem::ToolStart("Running Codex turn".to_string()));
+                let (sender, receiver) = mpsc::channel();
+                let bridge = self.bridge.clone();
+                let bot_id = self.current.id.clone();
+                thread::spawn(move || {
+                    let result = bridge
+                        .run_turn(&bot_id, &prompt)
+                        .map_err(|error| error.to_string());
+                    let _ = sender.send(TurnOutcome { result });
+                });
+                self.running_turn = Some(RunningTurn {
+                    started: Instant::now(),
+                    receiver,
+                });
             }
         }
+    }
+
+    fn poll_running_turn(&mut self) {
+        let Some(running) = self.running_turn.as_ref() else {
+            return;
+        };
+
+        match running.receiver.try_recv() {
+            Ok(outcome) => {
+                let Some(running) = self.running_turn.take() else {
+                    return;
+                };
+                self.finish_turn(outcome, running.started.elapsed());
+            }
+            Err(TryRecvError::Empty) => {}
+            Err(TryRecvError::Disconnected) => {
+                let Some(running) = self.running_turn.take() else {
+                    return;
+                };
+                self.push_item(TranscriptItem::Warning(
+                    "Codex turn failed: execution bridge disconnected.".to_string(),
+                ));
+                self.push_item(TranscriptItem::Divider(format!(
+                    "Worked for {}",
+                    format_elapsed(running.started.elapsed())
+                )));
+            }
+        }
+    }
+
+    fn finish_turn(&mut self, outcome: TurnOutcome, elapsed: Duration) {
+        match outcome.result {
+            Ok(turn) => {
+                for status in turn.statuses {
+                    self.push_item(TranscriptItem::Status(status));
+                }
+                if turn.ok {
+                    self.push_item(TranscriptItem::Assistant(turn.output));
+                    let thread = turn.cli_session_ref.as_deref().unwrap_or("no thread id");
+                    let mode = if turn.resumed { "resumed" } else { "started" };
+                    self.push_item(TranscriptItem::ToolDone {
+                        action: format!("Session {} ({})", mode, turn.session_label),
+                        detail: thread.to_string(),
+                    });
+                } else {
+                    self.push_item(TranscriptItem::Warning(format!(
+                        "Codex turn failed: {}",
+                        turn.error.unwrap_or_else(|| "unknown error".to_string())
+                    )));
+                }
+            }
+            Err(error) => {
+                self.push_item(TranscriptItem::Warning(format!(
+                    "Codex turn failed: {error}"
+                )));
+            }
+        }
+        self.push_item(TranscriptItem::Divider(format!(
+            "Worked for {}",
+            format_elapsed(elapsed)
+        )));
     }
 
     fn submit_bot(&mut self) {
@@ -365,6 +498,7 @@ fn restore_terminal(terminal: &mut Term) -> Result<()> {
 
 fn run_app(terminal: &mut Term, app: &mut App) -> Result<()> {
     while !app.should_quit {
+        app.poll_running_turn();
         terminal.draw(|frame| render(frame, app))?;
         if event::poll(Duration::from_millis(200))? {
             if let Event::Key(key) = event::read()? {
@@ -388,6 +522,17 @@ fn render_shell_flow(frame: &mut Frame, app: &App, area: Rect) {
     lines.push(Line::from(""));
     for item in &app.transcript {
         lines.extend(transcript_lines(item, width));
+    }
+    if let Some(running) = &app.running_turn {
+        lines.push(Line::from(vec![
+            muted("• "),
+            Span::styled(
+                format!("Working {}", format_elapsed(running.started.elapsed())),
+                Style::default()
+                    .fg(Color::Gray)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        ]));
     }
     lines.push(Line::from(""));
 
@@ -735,6 +880,11 @@ fn divider(text: &str, width: usize) -> String {
         return prefix;
     }
     format!("{prefix}{}", "─".repeat(width - prefix_width))
+}
+
+fn format_elapsed(duration: Duration) -> String {
+    let elapsed = duration.as_secs();
+    format!("{:02}:{:02}", elapsed / 60, elapsed % 60)
 }
 
 fn brand(text: &str) -> Span<'static> {

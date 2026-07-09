@@ -25,7 +25,7 @@ import { routeFeishuCardAction } from "../../src/feishu/callback-router.mjs";
 import { startFeishuCallbackServer } from "../../src/feishu/callback-server.mjs";
 import { runPreparedFeishuCodexTurn } from "../../src/feishu/prepared-runner.mjs";
 import { FeishuQuestionBroker } from "../../src/feishu/question-broker.mjs";
-import { normalizeFeishuText, sendFeishuCard, sendFeishuText, updateFeishuCard } from "../../src/feishu/client.mjs";
+import { FEISHU_TYPING_REACTION, addFeishuReaction, normalizeFeishuText, sendFeishuCard, sendFeishuText, updateFeishuCard } from "../../src/feishu/client.mjs";
 import { handleFeishuSlashCommand, parseSlashCommand as parseFeishuSlashCommand } from "../../src/feishu/command-router.mjs";
 import { FeishuCardUpdateController } from "../../src/feishu/card-updater.mjs";
 import { FEISHU_CARD_STATE } from "../../src/feishu/cards.mjs";
@@ -456,10 +456,6 @@ function normalizeFeishuOutput(text) {
   return normalizeFeishuText(text);
 }
 
-function renderRunningMessage(sessionLabel, hasSessionRef) {
-  return `Running ${hasSessionRef ? "Codex resume" : "Codex"} on [${sessionLabel}]...`;
-}
-
 export function renderQueuedMessage(sessionLabel, position) {
   return [
     `Queued on [${sessionLabel}] at position ${position}.`,
@@ -469,6 +465,10 @@ export function renderQueuedMessage(sessionLabel, position) {
 
 async function sendText(client, chatId, text, options = {}) {
   return await sendFeishuText(client, chatId, text, options);
+}
+
+async function addReaction(client, messageId, emojiType = FEISHU_TYPING_REACTION) {
+  return await addFeishuReaction(client, messageId, emojiType);
 }
 
 function createRunCardController(client, chatId, messageId, botIdentity) {
@@ -1005,19 +1005,11 @@ async function main() {
                   });
                 },
                 onRunning: async () => {
-                  if (cardController) {
-                    await cardController.publish({
-                      state: FEISHU_CARD_STATE.RUNNING,
-                      title: "CodexBridge",
-                      sessionLabel: chatState.sessionLabel,
-                      summary: renderRunningMessage(chatState.sessionLabel, Boolean(chatState.cliSessionRef)),
-                    });
-                    return;
+                  try {
+                    await addReaction(client, messageId);
+                  } catch (error) {
+                    console.error("feishu running reaction failed", error);
                   }
-                  const runningResponse = await sendText(client, chatId, renderRunningMessage(chatState.sessionLabel, Boolean(chatState.cliSessionRef)), {
-                    replyToMessageId: messageId,
-                  });
-                  rememberBotOpenId(botIdentity, runningResponse);
                 },
                 deps: {
                   buildWorkspacePrompt,

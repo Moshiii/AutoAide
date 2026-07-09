@@ -8,7 +8,6 @@ import { createCliRenderer } from "./cli-renderer.mjs";
 import {
   getBotRuntimePidPath,
   getTelegramStatePath,
-  getWorkspacePath,
   ensureCodexBridgeHome,
   readCliState,
   readConfig,
@@ -17,12 +16,10 @@ import {
   createDefaultCliState,
 } from "./config.mjs";
 import { DEFAULT_BOT_ID } from "./config.mjs";
-import { buildCommandConfig, startCliTurn } from "./codex-runner.mjs";
 import { hydrateTelegramMetadata } from "./telegram-metadata.mjs";
 import { getStateMigrationStatus, runStateMigrations } from "./state-migrations.mjs";
 import { completeBootstrap, ensureWorkspaceBootstrap } from "./workspace-bootstrap.mjs";
-import { buildWorkspacePrompt } from "./workspace-context.mjs";
-import { createBot, ensureDefaultBot, getBot, listBots, normalizeBotId, restartBot, setActiveBot, startBot, stopBot, updateBotConfig } from "./bots.mjs";
+import { createBot, ensureDefaultBot, getBot, listBots, restartBot, setActiveBot, startBot, stopBot, updateBotConfig } from "./bots.mjs";
 import { promptSelect } from "./interactive-menu.mjs";
 import { getUserCredits, resolveCliCreditsUserId } from "./user-credits.mjs";
 import {
@@ -32,22 +29,18 @@ import {
   installSkillFromPath,
   listSkills,
 } from "./skills.mjs";
-import { formatKeyValueCard, formatListCard, formatMessageCard, showStartupBanner } from "./ui/banner.mjs";
+import { composeStartupBanner, formatKeyValueCard, formatListCard, formatMessageCard, showStartupBanner } from "./ui/banner.mjs";
 import {
-  formatBotPrompt,
-  formatCliSessions,
   formatCliStatus,
   formatLaunchSummary,
   formatStatusOverview,
   getRunningTurn,
   getTelegramConfigView,
-  renderCliResult,
-  slugifySessionLabel,
 } from "./cli-formatters.mjs";
 import { requestChildStop } from "./pid-files.mjs";
 
 function isReadlineAbortError(error) {
-  return error?.code === "ABORT_ERR" || error?.name === "AbortError";
+  return error?.code === "ABORT_ERR" || error?.name === "AbortError" || error?.message === "readline was closed";
 }
 
 function isInteractiveTerminal() {
@@ -151,21 +144,30 @@ async function waitForCliEnter(rl, message) {
   await rl.question("");
 }
 
-async function askCliInputLine(rl, botId) {
-  if (isInteractiveTerminal()) {
-    return await askCliText(rl, `CodexBridge · ${botId}`, {
-      placeholder: "Type a request, /menu, or /exit",
-    });
-  }
-  return (await rl.question(formatBotPrompt(botId))).trim();
-}
-
-function restoreCliPrompt(rl, botId) {
-  if (isInteractiveTerminal() || !output?.isTTY || typeof rl?.write !== "function") {
+async function pauseBeforeMenu(rl) {
+  if (!isInteractiveTerminal()) {
     return;
   }
-  output.write(formatBotPrompt(botId));
-  rl.write("");
+  await waitForCliEnter(rl, "Return to menu");
+}
+
+async function askCliInputLine(rl, botId) {
+  return (await rl.question(`codexbridge:${botId}> `)).trim();
+}
+
+function runCodexBridgeTui() {
+  const entrypoint = process.argv[1];
+  if (!entrypoint) {
+    console.log(`${formatMessageCard("TUI", ["Unable to locate the CodexBridge entrypoint. Try: codexbridge tui"])}\n`);
+    return;
+  }
+  const result = spawnSync(process.execPath, [entrypoint, "tui"], {
+    stdio: "inherit",
+    env: process.env,
+  });
+  if (result.error) {
+    console.log(`${formatMessageCard("TUI Failed", [result.error.message])}\n`);
+  }
 }
 
 async function resolveFeishuAppOwnerUserId(appId, appSecret) {
@@ -623,20 +625,26 @@ async function promptForBotBasics(rl, defaults = {}) {
   if (!name) {
     return null;
   }
-  const derivedId = normalizeBotId(name) || defaults.id || "";
-  const providedId = String(defaults.id || "").trim();
-  const id = normalizeBotId(await askCliText(rl, "Bot id", {
-    defaultValue: providedId || derivedId,
-    required: true,
-  }));
+  const id = defaults.id || await generateBotId();
   if (!id) {
     return null;
   }
   return { id, name };
 }
 
+async function generateBotId() {
+  const existing = new Set((await listBots()).map((bot) => String(bot.id)));
+  for (let value = 1000; value <= 9999; value += 1) {
+    const id = String(value);
+    if (!existing.has(id)) {
+      return id;
+    }
+  }
+  throw new Error("No available 4-digit bot id.");
+}
+
 async function createBotInteractive(rl, botContextRef) {
-  console.log(`${formatMessageCard("New Bot", ["Create a bot with a short name. I will derive the id for you if needed."])}\n`);
+  console.log(`${formatMessageCard("New Bot", ["Create a bot with a short name. I will generate a 4-digit id for it."])}\n`);
   const basics = await promptForBotBasics(rl);
   if (!basics) {
     console.log(`${formatMessageCard("New Bot", ["Creation cancelled."])}\n`);
@@ -658,70 +666,6 @@ async function createBotInteractive(rl, botContextRef) {
   return created;
 }
 
-async function renameBotInteractive(rl, botId, botContextRef, configRef) {
-  const bot = await getBot(botId);
-  const config = await readConfig(bot.homePath);
-  const nextName = await askCliText(rl, `Rename bot ${botId}`, {
-    defaultValue: config.name || bot.name,
-    required: true,
-  });
-  if (!nextName) {
-    console.log(`${formatMessageCard("Rename Bot", ["Rename cancelled."])}\n`);
-    return false;
-  }
-  await updateBotConfig(botId, (currentConfig) => ({
-    ...currentConfig,
-    name: nextName,
-  }));
-  if (botId === botContextRef.current.botId) {
-    configRef.current = await readConfig(botContextRef.current.botHome);
-  }
-  console.log(`${formatMessageCard("Rename Bot", [`${botId} is now "${nextName}".`])}\n`);
-  return true;
-}
-
-async function toggleBotEnabled(botId, botContextRef, configRef, bridgeProcessRef) {
-  const bot = await getBot(botId);
-  const config = await readConfig(bot.homePath);
-  const nextEnabled = !(config.enabled ?? bot.enabled);
-  await updateBotConfig(botId, (currentConfig) => ({
-    ...currentConfig,
-    enabled: nextEnabled,
-  }));
-  if (!nextEnabled && bot.runtimePid) {
-    await stopBot(botId).catch(() => {});
-  }
-  if (botId === botContextRef.current.botId) {
-    configRef.current = await readConfig(botContextRef.current.botHome);
-    bridgeProcessRef.current = {
-      pid: (await getBot(botContextRef.current.botId)).runtimePid,
-    };
-  }
-  console.log(
-    `${formatMessageCard("Bot Updated", [
-      `${botId} is now ${nextEnabled ? "enabled" : "disabled"}.`,
-    ])}\n`,
-  );
-  return true;
-}
-
-async function showBotDetails(botId) {
-  const bot = await getBot(botId);
-  const config = await readConfig(bot.homePath);
-  console.log(
-    `${formatKeyValueCard("Bot Details", [
-      ["id", bot.id],
-      ["name", config.name || bot.name],
-      ["enabled", config.enabled ? "yes" : "no"],
-      ["runtime", bot.runtimePid ? "online" : "offline"],
-      ["channel", config.channel || "telegram"],
-      ["telegram", config.channels?.telegram?.enabled ? "paired" : "unpaired"],
-      ["feishu", config.channels?.feishu?.enabled ? "configured" : "not configured"],
-      ["home", bot.homePath],
-    ])}\n`,
-  );
-}
-
 async function openBotPicker(rl, botContextRef, configRef, bridgeProcessRef, cliStateRef, bootstrapInfoRef, runningTurns) {
   let highlightedBotId = botContextRef.current.botId;
 
@@ -729,77 +673,46 @@ async function openBotPicker(rl, botContextRef, configRef, bridgeProcessRef, cli
     clearInteractiveScreen();
     const bots = await listBots();
     const currentIndex = Math.max(0, bots.findIndex((bot) => bot.id === highlightedBotId || bot.id === botContextRef.current.botId));
+    const items = [
+      ...bots.map((bot) => ({
+        label: formatBotPickerLabel(bot, botContextRef.current.botId),
+        value: bot.id,
+      })),
+      { label: "new bot", value: "__new_bot__" },
+    ];
     const choice = await promptSelect({
       rl,
       input,
       output,
       title: "Bots",
-      items: bots.map((bot) => ({
-        label: formatBotPickerLabel(bot, botContextRef.current.botId),
-        value: bot.id,
-      })),
+      items,
+      headerLines: isInteractiveTerminal() ? composeStartupBanner() : [],
       defaultIndex: currentIndex,
-      hintLines: [
-        "Enter switches to the highlighted bot.",
-        "Esc returns to the prompt.",
-      ],
-      shortcuts: [
-        { key: "n", label: "new bot", action: "create" },
-        { key: "r", label: "rename", action: "rename" },
-        { key: "space", label: "enable/disable", action: "toggle-enabled" },
-        { key: "c", label: "connect channel", action: "connect-channel" },
-        { key: "i", label: "details", action: "details" },
-      ],
-      fallbackPrompt: "Bot [number, n, r, c, i, space, q]: ",
+      fallbackPrompt: "Bot [number, q=cancel]: ",
     });
 
     if (choice.action === "cancel") {
       return false;
     }
 
-    const targetBotId = choice.value || bots[currentIndex]?.id || botContextRef.current.botId;
-    highlightedBotId = targetBotId;
-
-    if (choice.action === "shortcut") {
-      if (choice.shortcut === "create") {
-        const created = await createBotInteractive(rl, botContextRef);
-        if (created?.id) {
-          highlightedBotId = created.id;
-        }
-        continue;
-      }
-      if (choice.shortcut === "rename") {
-        await renameBotInteractive(rl, targetBotId, botContextRef, configRef);
-        continue;
-      }
-      if (choice.shortcut === "toggle-enabled") {
-        await toggleBotEnabled(targetBotId, botContextRef, configRef, bridgeProcessRef);
-        continue;
-      }
-      if (choice.shortcut === "details") {
-        await showBotDetails(targetBotId);
-        continue;
-      }
-      if (choice.shortcut === "connect-channel") {
-        if (targetBotId !== botContextRef.current.botId) {
-          if (Array.from(runningTurns.values()).some(Boolean)) {
-            console.log(`${formatMessageCard("Bot Switch Failed", ["Stop running turns before switching bots."])}\n`);
-            continue;
-          }
-          await switchCliBot(targetBotId, botContextRef, configRef, bridgeProcessRef, cliStateRef, bootstrapInfoRef);
-        }
-        await handleChannelCommand(rl, botContextRef, configRef.current, bridgeProcessRef);
-        configRef.current = await readConfig(botContextRef.current.botHome);
-        continue;
+    if (choice.value === "__new_bot__") {
+      const created = await createBotInteractive(rl, botContextRef);
+      if (created?.id) {
+        highlightedBotId = created.id;
+        await pauseBeforeMenu(rl);
       }
       continue;
     }
+
+    const targetBotId = choice.value || bots[currentIndex]?.id || botContextRef.current.botId;
+    highlightedBotId = targetBotId;
 
     if (targetBotId === botContextRef.current.botId) {
       return true;
     }
     if (Array.from(runningTurns.values()).some(Boolean)) {
       console.log(`${formatMessageCard("Bot Switch Failed", ["Stop running turns before switching bots."])}\n`);
+      await pauseBeforeMenu(rl);
       return true;
     }
     await switchCliBot(targetBotId, botContextRef, configRef, bridgeProcessRef, cliStateRef, bootstrapInfoRef);
@@ -807,57 +720,21 @@ async function openBotPicker(rl, botContextRef, configRef, bridgeProcessRef, cli
   }
 }
 
-async function startCliMessage(line, rl, botContextRef, cliState, config, runningTurns, renderer) {
-  const active = cliState.sessions[cliState.activeSessionLabel];
-  if (getRunningTurn(runningTurns, active.label)) {
-    renderer.sessionBusy(active.label);
-    restoreCliPrompt(rl, botContextRef.current.botId);
-    return;
-  }
-  const commandConfig = {
-    ...buildCommandConfig(config),
-    onStatus(status) {
-      renderer.updateRunStatus(status);
-      if (!renderer.isInteractive) {
-        restoreCliPrompt(rl, botContextRef.current.botId);
-      }
-    },
-  };
-  const prompt = await buildWorkspacePrompt(line, { workspacePath: getWorkspacePath(botContextRef.current.botHome) });
-  renderer.startRun(active.label);
-
-  const started = startCliTurn(prompt, active.cliSessionRef, commandConfig);
-  const turn = {
-    child: started.child,
-    stopRequested: false,
-  };
-  runningTurns.set(active.label, turn);
-
-  void started.result
-    .then(async (result) => {
-      if (runningTurns.get(active.label) === turn) {
-        runningTurns.delete(active.label);
-      }
-      if (result.ok && result.cliSessionRef) {
-        active.cliSessionRef = result.cliSessionRef;
-        active.updatedAt = new Date().toISOString();
-        await writeCliState(cliState, botContextRef.current.botHome);
-      }
-      renderer.finishRun({ ok: result.ok, sessionLabel: active.label });
-      renderer.printBlock(renderCliResult(result));
-      restoreCliPrompt(rl, botContextRef.current.botId);
-    })
-    .catch((error) => {
-      if (runningTurns.get(active.label) === turn) {
-        runningTurns.delete(active.label);
-      }
-      renderer.failRun(`Turn failed: ${error.message}`);
-      restoreCliPrompt(rl, botContextRef.current.botId);
-    });
-}
-
 async function restartBotRuntime(botId) {
   return await restartBot(botId);
+}
+
+async function resolveRuntimeErrorMessage(error, botId) {
+  const message = error?.message || String(error || "Unknown runtime error.");
+  try {
+    const bot = await getBot(botId);
+    if (bot.lastError && bot.lastError !== message) {
+      return bot.lastError;
+    }
+  } catch {
+    // Keep the original runtime error when bot state cannot be read.
+  }
+  return message;
 }
 
 function getCodexCliStatus() {
@@ -912,14 +789,10 @@ function printHelpCard() {
       "/new      create a new bot with prompts",
       "/connect  configure Telegram or Feishu",
       "/memory   personalize memory files when setup is pending",
-      "/me       show a compact status summary",
-      "/status   same as /me, use /status full for full details",
-      "/credits  show remaining credits for this bot",
-      "/migrate  run state migrations for this bot",
+      "/status   show full details",
       "/stop     stop the current running turn",
       "/restart  restart the current bot runtime",
       "/exit     quit CodexBridge",
-      "text      run a normal Codex turn",
     ])}\n`,
   );
 }
@@ -969,19 +842,19 @@ async function openMainMenu(rl, botContextRef, configRef, bridgeProcessRef, cliS
   const headerLines = [];
   if (clearScreen) {
     clearInteractiveScreen();
+    headerLines.push(...composeStartupBanner());
     headerLines.push(await buildLaunchSummary(botContextRef, configRef, bridgeProcessRef, cliStateRef, bootstrapInfoRef));
   }
   const items = [
     { label: "Start chat with current bot", value: "chat" },
-    { label: "Manage bots", value: "bots" },
-    { label: "Create a new bot", value: "new-bot" },
+    { label: "Start runtime", value: "start-runtime" },
+    { label: "Stop runtime", value: "stop-runtime" },
+    { label: "Restart runtime", value: "restart-runtime" },
+    { label: "Switch bots", value: "bots" },
     { label: "Connect Telegram or Feishu", value: "connect" },
+    { label: "User management", value: "users" },
   ];
-  if (bootstrapInfoRef.current.bootstrapPending) {
-    items.push({ label: "Personalize memory", value: "bootstrap" });
-  }
   items.push(
-    { label: "View diagnostics / status", value: "status" },
     { label: "Show help", value: "help" },
     { label: "Exit CodexBridge", value: "exit" },
   );
@@ -995,23 +868,60 @@ async function openMainMenu(rl, botContextRef, configRef, bridgeProcessRef, cliS
     headerLines,
     defaultIndex: 0,
     hintLines: [
-      "Choose what you want to do next. Esc returns to the prompt.",
+      "Choose an action. Ctrl+C twice exits.",
     ],
     fallbackPrompt: `Action [1-${items.length}, q=cancel]: `,
   });
 
   if (choice.action === "cancel") {
-    return true;
+    return "cancel";
   }
 
   if (choice.value === "chat") {
-    return "chat";
+    runCodexBridgeTui();
+    return true;
+  }
+  if (choice.value === "start-runtime") {
+    try {
+      bridgeProcessRef.current = {
+        pid: await startBot(botContextRef.current.botId),
+      };
+      console.log(`${formatKeyValueCard("Runtime Started", [["runtime pid", String(bridgeProcessRef.current.pid)]])}\n`);
+    } catch (error) {
+      console.log(`${formatMessageCard("Runtime Start Failed", [await resolveRuntimeErrorMessage(error, botContextRef.current.botId)])}\n`);
+    }
+    await pauseBeforeMenu(rl);
+    return true;
+  }
+  if (choice.value === "stop-runtime") {
+    try {
+      await stopBot(botContextRef.current.botId);
+      bridgeProcessRef.current = { pid: null };
+      console.log(`${formatMessageCard("Runtime Stopped", [`Stopped bot ${botContextRef.current.botId}.`])}\n`);
+    } catch (error) {
+      console.log(`${formatMessageCard("Runtime Stop Failed", [error.message])}\n`);
+    }
+    await pauseBeforeMenu(rl);
+    return true;
+  }
+  if (choice.value === "restart-runtime") {
+    try {
+      bridgeProcessRef.current = {
+        pid: await restartBotRuntime(botContextRef.current.botId),
+      };
+      console.log(`${formatKeyValueCard("Runtime Restarted", [["runtime pid", String(bridgeProcessRef.current.pid)]])}\n`);
+    } catch (error) {
+      console.log(`${formatMessageCard("Runtime Restart Failed", [await resolveRuntimeErrorMessage(error, botContextRef.current.botId)])}\n`);
+    }
+    await pauseBeforeMenu(rl);
+    return true;
   }
   if (choice.value === "bots") {
     const botAction = await openBotPicker(rl, botContextRef, configRef, bridgeProcessRef, cliStateRef, bootstrapInfoRef, runningTurns);
     if (botAction === "changed") {
-      console.log(`Active bot: ${botContextRef.current.botId}\n`);
-      return await openMainMenu(rl, botContextRef, configRef, bridgeProcessRef, cliStateRef, bootstrapInfoRef, runningTurns);
+      console.log(`${formatMessageCard("Active Bot", [`Switched to ${botContextRef.current.botId}.`])}\n`);
+      await pauseBeforeMenu(rl);
+      return true;
     }
     return true;
   }
@@ -1024,16 +934,17 @@ async function openMainMenu(rl, botContextRef, configRef, bridgeProcessRef, cliS
     configRef.current = await readConfig(botContextRef.current.botHome);
     return true;
   }
-  if (choice.value === "status") {
-    await showCliStatus(botContextRef, configRef, bridgeProcessRef, cliStateRef, bootstrapInfoRef, runningTurns, { mode: "summary" });
-    return true;
-  }
-  if (choice.value === "bootstrap") {
-    await runBootstrapFlow(rl, bootstrapInfoRef, botContextRef);
+  if (choice.value === "users") {
+    console.log(`${formatMessageCard("User Management", [
+      "User access, credits, and bans are managed in the web control plane.",
+      "Run: codexbridge web",
+    ])}\n`);
+    await pauseBeforeMenu(rl);
     return true;
   }
   if (choice.value === "help") {
     printHelpCard();
+    await pauseBeforeMenu(rl);
     return true;
   }
   if (choice.value === "exit") {
@@ -1148,7 +1059,7 @@ async function handleSlashCommand(line, rl, botContextRef, configRef, bridgeProc
       return true;
     case "/status":
       await showCliStatus(botContextRef, configRef, bridgeProcessRef, cliStateRef, bootstrapInfoRef, runningTurns, {
-        mode: rest[0] === "full" ? "full" : "summary",
+        mode: "full",
       });
       return true;
     case "/credits": {
@@ -1251,6 +1162,7 @@ export async function startCli({ botId = DEFAULT_BOT_ID } = {}) {
   const runningTurns = new Map();
   const renderer = createCliRenderer({ input, output });
   let startupAction = null;
+  let menuCancelCount = 0;
 
   if (isInteractiveTerminal()) {
     await showStartupBanner({
@@ -1272,19 +1184,40 @@ export async function startCli({ botId = DEFAULT_BOT_ID } = {}) {
       renderer.dispose();
       return;
     }
+    if (startupAction === "cancel") {
+      menuCancelCount += 1;
+    } else {
+      menuCancelCount = 0;
+    }
   }
 
   const rl = createInterface({ input, output });
-  let clearBeforePrompt = startupAction === "chat";
+
+  if (isInteractiveTerminal()) {
+    while (true) {
+      const action = await openMainMenu(rl, botContextRef, configRef, bridgeProcessRef, cliStateRef, bootstrapInfoRef, runningTurns);
+      if (action === "exit") {
+        renderer.dispose();
+        rl.close();
+        return;
+      }
+      if (action === "cancel") {
+        menuCancelCount += 1;
+        if (menuCancelCount >= 2) {
+          renderer.dispose();
+          rl.close();
+          return;
+        }
+        continue;
+      }
+      menuCancelCount = 0;
+    }
+  }
 
   while (true) {
     let line;
     try {
       restoreInteractiveInput();
-      if (clearBeforePrompt) {
-        clearInteractiveScreen();
-        clearBeforePrompt = false;
-      }
       line = await askCliInputLine(rl, botContextRef.current.botId);
     } catch (error) {
       if (isReadlineAbortError(error)) {
@@ -1304,9 +1237,6 @@ export async function startCli({ botId = DEFAULT_BOT_ID } = {}) {
       if (action === "exit") {
         return;
       }
-      if (action === "chat") {
-        clearBeforePrompt = true;
-      }
       continue;
     }
     const handled = await handleSlashCommand(
@@ -1324,14 +1254,17 @@ export async function startCli({ botId = DEFAULT_BOT_ID } = {}) {
       renderer.dispose();
       return;
     }
-    if (handled === "chat") {
-      clearBeforePrompt = true;
-      continue;
-    }
     if (handled) {
       continue;
     }
-    configRef.current = await readConfig(botContextRef.current.botHome);
-    await startCliMessage(line, rl, botContextRef, cliStateRef.current, configRef.current, runningTurns, renderer);
+    console.log(`${formatMessageCard("Chat Moved to TUI", [
+      "The CodexBridge management CLI no longer runs chat turns directly.",
+      "Choose Start chat with current bot from /menu, or run: codexbridge tui",
+    ])}\n`);
+    if (!isInteractiveTerminal()) {
+      renderer.dispose();
+      rl.close();
+      return;
+    }
   }
 }

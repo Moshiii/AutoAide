@@ -89,6 +89,35 @@ test("Feishu client sends reply card with interactive content", async () => {
   });
 });
 
+test("Feishu client adds a Typing reaction to a message", async () => {
+  const { FEISHU_TYPING_REACTION, addFeishuReaction } = await importFresh("../../src/feishu/client.mjs");
+  const calls = [];
+  const client = {
+    im: {
+      messageReaction: {
+        create: async (payload) => {
+          calls.push(["reaction.create", payload]);
+          return { data: { reaction_id: "react_1" } };
+        },
+      },
+    },
+  };
+
+  await addFeishuReaction(client, "om_1");
+
+  assert.deepEqual(calls, [[
+    "reaction.create",
+    {
+      path: { message_id: "om_1" },
+      data: {
+        reaction_type: {
+          emoji_type: FEISHU_TYPING_REACTION,
+        },
+      },
+    },
+  ]]);
+});
+
 test("Feishu client updates cards with message patch", async () => {
   const { updateFeishuCard } = await importFresh("../../src/feishu/client.mjs");
   const calls = [];
