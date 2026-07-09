@@ -17,31 +17,39 @@ Install Moshiii/CodexBridge from GitHub and start CodexBridge.
 
 ## 预览
 
-下面是 README 需要承载的四类核心截图占位图。真实产品截图稳定后，用实际截图替换这些 placeholder。
+下面是当前产品截图，展示 CodexBridge 如何把 Codex 分发给团队用户，同时保留 operator 的用户、积分、runtime 和 workspace 管理能力。
 
 <table>
   <tr>
     <td width="50%">
-      <img src="docs/assets/screenshots/feishu-chat.svg" alt="Feishu team chat with CodexBridge" />
+      <img src="docs/assets/screenshots/feishu-groupchat.png" alt="Feishu group chat with CodexBridge" />
       <br />
-      <strong>飞书团队对话</strong>
+      <strong>飞书群聊入口</strong>
+      <br />
+      <sub>团队成员在飞书群里直接调用 CodexBridge。</sub>
     </td>
     <td width="50%">
-      <img src="docs/assets/screenshots/web-control-plane.svg" alt="CodexBridge web control plane" />
+      <img src="docs/assets/screenshots/team%20config.png" alt="CodexBridge team configuration and web control plane" />
       <br />
-      <strong>Web 管理控制台</strong>
+      <strong>团队配置与管理控制台</strong>
+      <br />
+      <sub>operator 管理 bot、runtime、渠道和团队访问。</sub>
     </td>
   </tr>
   <tr>
     <td width="50%">
-      <img src="docs/assets/screenshots/user-management.svg" alt="CodexBridge user and credit management" />
+      <img src="docs/assets/screenshots/codexbridge%20tui.png" alt="CodexBridge local TUI chat" />
       <br />
-      <strong>用户与积分管理</strong>
+      <strong>本地 TUI 多轮对话</strong>
+      <br />
+      <sub>本地 operator 可以用 Codex 风格终端继续同一个 bot 线程。</sub>
     </td>
     <td width="50%">
-      <img src="docs/assets/screenshots/tui-chat.svg" alt="CodexBridge local TUI chat" />
+      <img src="docs/assets/screenshots/codexbridge_teminal.png" alt="CodexBridge CLI entry and runtime status" />
       <br />
-      <strong>本地 TUI 对话</strong>
+      <strong>CLI 入口与状态</strong>
+      <br />
+      <sub>从命令行查看当前 bot、runtime、渠道和 workspace。</sub>
     </td>
   </tr>
 </table>

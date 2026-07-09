@@ -17,31 +17,39 @@ Install Moshiii/CodexBridge from GitHub and start CodexBridge.
 
 ## プレビュー
 
-以下は、実際のプロダクトスクリーンショットが準備できるまで README に表示する 4 つの placeholder です。
+現在のプロダクトスクリーンショットです。CodexBridge が Codex をチームユーザーに配布しながら、operator がユーザー、クレジット、runtime、workspace を管理できることを示します。
 
 <table>
   <tr>
     <td width="50%">
-      <img src="../assets/screenshots/feishu-chat.svg" alt="CodexBridge の Feishu チームチャット" />
+      <img src="../assets/screenshots/feishu-groupchat.png" alt="CodexBridge の Feishu グループチャット" />
       <br />
-      <strong>Feishu チームチャット</strong>
+      <strong>Feishu グループ入口</strong>
+      <br />
+      <sub>チームメンバーは Feishu グループから直接 CodexBridge を呼び出せます。</sub>
     </td>
     <td width="50%">
-      <img src="../assets/screenshots/web-control-plane.svg" alt="CodexBridge Web コントロールプレーン" />
+      <img src="../assets/screenshots/team%20config.png" alt="CodexBridge チーム設定と Web コントロールプレーン" />
       <br />
-      <strong>Web コントロールプレーン</strong>
+      <strong>チーム設定とコントロールプレーン</strong>
+      <br />
+      <sub>operator は bot、runtime、channel、team access を管理します。</sub>
     </td>
   </tr>
   <tr>
     <td width="50%">
-      <img src="../assets/screenshots/user-management.svg" alt="CodexBridge ユーザーとクレジット管理" />
+      <img src="../assets/screenshots/codexbridge%20tui.png" alt="CodexBridge ローカル TUI チャット" />
       <br />
-      <strong>ユーザーとクレジット管理</strong>
+      <strong>ローカル TUI マルチターン対話</strong>
+      <br />
+      <sub>ローカル operator は Codex 風ターミナルで同じ bot thread を継続できます。</sub>
     </td>
     <td width="50%">
-      <img src="../assets/screenshots/tui-chat.svg" alt="CodexBridge ローカル TUI チャット" />
+      <img src="../assets/screenshots/codexbridge_teminal.png" alt="CodexBridge CLI entry and runtime status" />
       <br />
-      <strong>ローカル TUI チャット</strong>
+      <strong>CLI 入口とステータス</strong>
+      <br />
+      <sub>コマンドラインから active bot、runtime、channel、workspace を確認できます。</sub>
     </td>
   </tr>
 </table>

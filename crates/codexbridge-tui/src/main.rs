@@ -23,6 +23,9 @@ use ratatui::{
 };
 use serde::Deserialize;
 
+const INPUT_BLOCK_HEIGHT: u16 = 3;
+const TRANSCRIPT_INPUT_GAP: u16 = 1;
+
 #[derive(Debug, Clone, Default, Deserialize)]
 struct Bot {
     id: String,
@@ -534,34 +537,14 @@ fn render_shell_flow(frame: &mut Frame, app: &App, area: Rect) {
             ),
         ]));
     }
-    lines.push(Line::from(""));
-
-    let content_height = (lines.len() as u16).min(area.height);
-    let content_area = Rect {
-        x: area.x,
-        y: area.y,
-        width: area.width,
-        height: content_height,
-    };
-    frame.render_widget(
-        Paragraph::new(lines).wrap(Wrap { trim: true }),
-        content_area,
-    );
-
-    let input_y = area.y.saturating_add(content_height);
-    if input_y >= area.y.saturating_add(area.height) {
-        return;
+    for _ in 0..TRANSCRIPT_INPUT_GAP {
+        lines.push(Line::from(""));
     }
-    render_input_block(
-        frame,
-        app,
-        Rect {
-            x: area.x,
-            y: input_y,
-            width: area.width,
-            height: area.y.saturating_add(area.height).saturating_sub(input_y),
-        },
-    );
+    lines.extend(input_block_lines(app, width));
+
+    let visible_start = lines.len().saturating_sub(area.height as usize);
+    let visible_lines: Vec<Line<'static>> = lines.into_iter().skip(visible_start).collect();
+    frame.render_widget(Paragraph::new(visible_lines), area);
 }
 
 fn status_lines(app: &App, width: usize) -> Vec<Line<'static>> {
@@ -672,47 +655,20 @@ fn render_bots_flow(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_stateful_widget(list, list_area, &mut state);
 }
 
-fn render_input_block(frame: &mut Frame, app: &App, area: Rect) {
-    let input_height = area.height.min(3);
-    if input_height == 0 {
-        return;
-    }
-    let input_area = Rect {
-        x: area.x,
-        y: area.y,
-        width: area.width,
-        height: input_height,
-    };
-    let width = area.width as usize;
+fn input_block_lines(app: &App, width: usize) -> Vec<Line<'static>> {
     let placeholder = match app.screen {
         Screen::Shell => "Improve documentation in @filename",
         Screen::Bots => "Filter bots",
     };
-    let mut input_lines = vec![input_fill_line(width)];
+    let mut input_lines = Vec::with_capacity(INPUT_BLOCK_HEIGHT as usize + 1);
+    input_lines.push(input_fill_line(width));
     input_lines.push(input_line(&app.input, placeholder, width));
     input_lines.push(input_fill_line(width));
-    frame.render_widget(
-        Paragraph::new(input_lines).style(Style::default().bg(input_bg())),
-        input_area,
-    );
-
-    let footer_y = input_area.y.saturating_add(input_area.height);
-    if footer_y >= area.y.saturating_add(area.height) {
-        return;
-    }
-    let footer_area = Rect {
-        x: area.x,
-        y: footer_y,
-        width: area.width,
-        height: 1,
-    };
-    frame.render_widget(
-        Paragraph::new(Line::from(Span::styled(
-            input_footer(app, width),
-            Style::default().fg(Color::Rgb(210, 130, 20)),
-        ))),
-        footer_area,
-    );
+    input_lines.push(Line::from(Span::styled(
+        input_footer(app, width),
+        Style::default().fg(Color::Rgb(210, 130, 20)),
+    )));
+    input_lines
 }
 
 fn input_line(input: &str, placeholder: &str, width: usize) -> Line<'static> {
@@ -826,40 +782,142 @@ fn transcript_lines(item: &TranscriptItem, width: usize) -> Vec<Line<'static>> {
             )),
             Line::from(""),
         ],
-        TranscriptItem::Assistant(text) => vec![Line::from(vec![muted("• "), value(text)])],
-        TranscriptItem::Status(text) => vec![Line::from(vec![muted("• "), value(text)])],
-        TranscriptItem::Warning(text) => vec![Line::from(vec![
-            Span::styled("△ ", Style::default().fg(Color::Rgb(150, 145, 0))),
-            Span::styled(
-                text.to_string(),
-                Style::default().fg(Color::Rgb(150, 145, 0)),
-            ),
-        ])],
-        TranscriptItem::ToolStart(action) => vec![Line::from(vec![
-            Span::styled("• ", Style::default().fg(Color::Gray)),
-            Span::styled(
-                action.to_string(),
-                Style::default()
-                    .fg(Color::Gray)
-                    .add_modifier(Modifier::BOLD),
-            ),
-        ])],
-        TranscriptItem::ToolDone { action, detail } => vec![Line::from(vec![
-            muted("• "),
-            Span::styled(
-                action.to_string(),
-                Style::default()
-                    .fg(Color::Gray)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            muted(" for "),
-            value(detail),
-        ])],
+        TranscriptItem::Assistant(text) => wrapped_prefixed_lines(
+            "• ",
+            text,
+            width,
+            Style::default().fg(Color::Gray),
+            Style::default(),
+        ),
+        TranscriptItem::Status(text) => wrapped_prefixed_lines(
+            "• ",
+            text,
+            width,
+            Style::default().fg(Color::Gray),
+            Style::default(),
+        ),
+        TranscriptItem::Warning(text) => wrapped_prefixed_lines(
+            "△ ",
+            text,
+            width,
+            Style::default().fg(Color::Rgb(150, 145, 0)),
+            Style::default().fg(Color::Rgb(150, 145, 0)),
+        ),
+        TranscriptItem::ToolStart(action) => wrapped_prefixed_lines(
+            "• ",
+            action,
+            width,
+            Style::default().fg(Color::Gray),
+            Style::default()
+                .fg(Color::Gray)
+                .add_modifier(Modifier::BOLD),
+        ),
+        TranscriptItem::ToolDone { action, detail } => wrapped_prefixed_lines(
+            "• ",
+            &format!("{action} for {detail}"),
+            width,
+            Style::default().fg(Color::Gray),
+            Style::default(),
+        ),
         TranscriptItem::Divider(text) => vec![Line::from(Span::styled(
             divider(text, width),
             Style::default().fg(Color::Gray),
         ))],
     }
+}
+
+fn wrapped_prefixed_lines(
+    prefix: &str,
+    text: &str,
+    width: usize,
+    prefix_style: Style,
+    text_style: Style,
+) -> Vec<Line<'static>> {
+    let prefix_width = display_width(prefix);
+    let content_width = width.saturating_sub(prefix_width).max(1);
+    let chunks = wrap_text(text, content_width);
+    if chunks.is_empty() {
+        return vec![Line::from(Span::styled(prefix.to_string(), prefix_style))];
+    }
+    chunks
+        .into_iter()
+        .enumerate()
+        .map(|(index, chunk)| {
+            let visible_prefix = if index == 0 {
+                prefix.to_string()
+            } else {
+                " ".repeat(prefix_width)
+            };
+            Line::from(vec![
+                Span::styled(visible_prefix, prefix_style),
+                Span::styled(chunk, text_style),
+            ])
+        })
+        .collect()
+}
+
+fn wrap_text(text: &str, width: usize) -> Vec<String> {
+    let width = width.max(1);
+    let mut lines = Vec::new();
+    for raw_line in text.lines() {
+        if raw_line.is_empty() {
+            lines.push(String::new());
+            continue;
+        }
+        wrap_text_line(raw_line, width, &mut lines);
+    }
+    if text.ends_with('\n') {
+        lines.push(String::new());
+    }
+    lines
+}
+
+fn wrap_text_line(text: &str, width: usize, lines: &mut Vec<String>) {
+    let mut current = String::new();
+    for word in text.split_whitespace() {
+        let word_width = display_width(word);
+        if word_width > width {
+            if !current.is_empty() {
+                lines.push(current);
+                current = String::new();
+            }
+            lines.extend(wrap_unbroken_text(word, width));
+            continue;
+        }
+        let separator = usize::from(!current.is_empty());
+        if display_width(&current) + separator + word_width > width {
+            lines.push(current);
+            current = word.to_string();
+        } else {
+            if !current.is_empty() {
+                current.push(' ');
+            }
+            current.push_str(word);
+        }
+    }
+    if !current.is_empty() {
+        lines.push(current);
+    }
+}
+
+fn wrap_unbroken_text(text: &str, width: usize) -> Vec<String> {
+    let mut lines = Vec::new();
+    let mut current = String::new();
+    let mut current_width = 0;
+    for ch in text.chars() {
+        let ch_width = char_width(ch);
+        if current_width > 0 && current_width + ch_width > width {
+            lines.push(current);
+            current = String::new();
+            current_width = 0;
+        }
+        current.push(ch);
+        current_width += ch_width;
+    }
+    if !current.is_empty() {
+        lines.push(current);
+    }
+    lines
 }
 
 fn padded(text: String, width: usize) -> String {
@@ -891,10 +949,6 @@ fn brand(text: &str) -> Span<'static> {
             .fg(Color::Gray)
             .add_modifier(Modifier::BOLD),
     )
-}
-
-fn value(text: &str) -> Span<'static> {
-    Span::raw(text.to_string())
 }
 
 fn muted(text: &str) -> Span<'static> {
@@ -993,4 +1047,32 @@ fn runtime_label(bot: &Bot) -> &str {
 
 fn channel_label(bot: &Bot) -> &str {
     bot.channel.as_deref().unwrap_or("telegram")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn wrap_text_counts_wrapped_display_lines() {
+        let lines = wrap_text(
+            "I am CodexBridge and I keep continuity instead of forgetting context.",
+            24,
+        );
+
+        assert!(lines.len() > 1);
+        assert!(lines.iter().all(|line| display_width(line) <= 24));
+        assert_eq!(
+            lines.join(" "),
+            "I am CodexBridge and I keep continuity instead of forgetting context."
+        );
+    }
+
+    #[test]
+    fn wrap_text_breaks_unspaced_wide_text() {
+        let lines = wrap_text("输入中文属性的吗收到货物啊还是读取", 10);
+
+        assert!(lines.len() > 1);
+        assert!(lines.iter().all(|line| display_width(line) <= 10));
+    }
 }

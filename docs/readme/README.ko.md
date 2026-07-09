@@ -17,31 +17,39 @@ Install Moshiii/CodexBridge from GitHub and start CodexBridge.
 
 ## 미리보기
 
-아래 placeholder는 실제 제품 스크린샷이 준비되면 README를 대표해야 할 네 가지 화면입니다.
+현재 제품 스크린샷입니다. CodexBridge가 Codex를 팀 사용자에게 배포하면서 operator가 users, credits, runtimes, workspaces를 제어하는 방식을 보여줍니다.
 
 <table>
   <tr>
     <td width="50%">
-      <img src="../assets/screenshots/feishu-chat.svg" alt="CodexBridge Feishu team chat" />
+      <img src="../assets/screenshots/feishu-groupchat.png" alt="CodexBridge Feishu group chat" />
       <br />
-      <strong>Feishu 팀 채팅</strong>
+      <strong>Feishu 그룹 진입점</strong>
+      <br />
+      <sub>팀원이 Feishu 그룹에서 직접 CodexBridge를 호출할 수 있습니다.</sub>
     </td>
     <td width="50%">
-      <img src="../assets/screenshots/web-control-plane.svg" alt="CodexBridge web control plane" />
+      <img src="../assets/screenshots/team%20config.png" alt="CodexBridge team configuration and web control plane" />
       <br />
-      <strong>Web control plane</strong>
+      <strong>팀 설정 및 control plane</strong>
+      <br />
+      <sub>operator가 bots, runtimes, channels, team access를 관리합니다.</sub>
     </td>
   </tr>
   <tr>
     <td width="50%">
-      <img src="../assets/screenshots/user-management.svg" alt="CodexBridge user and credit management" />
+      <img src="../assets/screenshots/codexbridge%20tui.png" alt="CodexBridge local TUI chat" />
       <br />
-      <strong>사용자 및 credit 관리</strong>
+      <strong>로컬 TUI 멀티턴 채팅</strong>
+      <br />
+      <sub>로컬 operator는 Codex 스타일 터미널에서 같은 bot thread를 이어갈 수 있습니다.</sub>
     </td>
     <td width="50%">
-      <img src="../assets/screenshots/tui-chat.svg" alt="CodexBridge local TUI chat" />
+      <img src="../assets/screenshots/codexbridge_teminal.png" alt="CodexBridge CLI entry and runtime status" />
       <br />
-      <strong>로컬 TUI 채팅</strong>
+      <strong>CLI 진입점 및 상태</strong>
+      <br />
+      <sub>명령줄에서 active bot, runtime, channel, workspace를 확인합니다.</sub>
     </td>
   </tr>
 </table>

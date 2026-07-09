@@ -17,31 +17,39 @@ Install Moshiii/CodexBridge from GitHub and start CodexBridge.
 
 ## Preview
 
-These placeholders show the four screenshots that should carry the README once real product captures are ready.
+Current product screenshots showing how CodexBridge distributes Codex to team users while keeping operator control over users, credits, runtimes, and workspaces.
 
 <table>
   <tr>
     <td width="50%">
-      <img src="../assets/screenshots/feishu-chat.svg" alt="Feishu team chat with CodexBridge" />
+      <img src="../assets/screenshots/feishu-groupchat.png" alt="Feishu group chat with CodexBridge" />
       <br />
-      <strong>Feishu team chat</strong>
+      <strong>Feishu group entry point</strong>
+      <br />
+      <sub>Team members can call CodexBridge directly from a Feishu group.</sub>
     </td>
     <td width="50%">
-      <img src="../assets/screenshots/web-control-plane.svg" alt="CodexBridge web control plane" />
+      <img src="../assets/screenshots/team%20config.png" alt="CodexBridge team configuration and web control plane" />
       <br />
-      <strong>Web control plane</strong>
+      <strong>Team configuration and control plane</strong>
+      <br />
+      <sub>Operators manage bots, runtimes, channels, and team access.</sub>
     </td>
   </tr>
   <tr>
     <td width="50%">
-      <img src="../assets/screenshots/user-management.svg" alt="CodexBridge user and credit management" />
+      <img src="../assets/screenshots/codexbridge%20tui.png" alt="CodexBridge local TUI chat" />
       <br />
-      <strong>User and credit management</strong>
+      <strong>Local multi-turn TUI</strong>
+      <br />
+      <sub>Local operators can continue the same bot thread in a Codex-style terminal.</sub>
     </td>
     <td width="50%">
-      <img src="../assets/screenshots/tui-chat.svg" alt="CodexBridge local TUI chat" />
+      <img src="../assets/screenshots/codexbridge_teminal.png" alt="CodexBridge CLI entry and runtime status" />
       <br />
-      <strong>Local TUI chat</strong>
+      <strong>CLI entry and status</strong>
+      <br />
+      <sub>Check the active bot, runtime, channel, and workspace from the command line.</sub>
     </td>
   </tr>
 </table>

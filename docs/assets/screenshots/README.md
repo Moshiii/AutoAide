@@ -1,13 +1,20 @@
-# Screenshot Placeholders
+# Screenshot Assets
 
-Replace these SVG placeholders with real product screenshots when the flows are stable.
+These assets are used by the root README and translated README pages.
 
-Recommended screenshots:
+Current README screenshots:
 
-1. `feishu-chat.png` - Feishu group or direct chat where a user mentions the bot, sees typing/progress, and receives a useful CodexBridge reply. Redact user names, tenant names, tokens, and private content.
-2. `web-control-plane.png` - Overview page showing bot state, runtime state, channel readiness, invite gate, and recent runs. This should prove the operator can see and control the system.
-3. `user-management.png` - Users and credits view showing one selected user, credit balance, private unlock state, ban/unban actions, and recent usage.
-4. `tui-chat.png` - Local TUI showing the header, prompt input, one user request, a running/elapsed state, and one assistant reply.
+1. `feishu-groupchat.png` - Feishu group chat where a team member uses CodexBridge.
+2. `team config.png` - Web control plane / team configuration view.
+3. `codexbridge tui.png` - Local Codex-style multi-turn TUI.
+4. `codexbridge_teminal.png` - CLI entry and current bot/runtime status.
+
+Legacy SVG assets are kept for docs that still reference them:
+
+1. `feishu-chat.svg`
+2. `web-control-plane.svg`
+3. `user-management.svg`
+4. `tui-chat.svg`
 
 Capture guidance:
 

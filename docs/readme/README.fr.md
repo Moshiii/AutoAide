@@ -17,31 +17,39 @@ Install Moshiii/CodexBridge from GitHub and start CodexBridge.
 
 ## Apercu
 
-Ces placeholders representent les quatre captures qui devront porter le README lorsque les captures produit reelles seront pretes.
+Captures produit actuelles montrant comment CodexBridge distribue Codex aux utilisateurs d'equipe tout en gardant le controle operateur sur les utilisateurs, credits, runtimes et workspaces.
 
 <table>
   <tr>
     <td width="50%">
-      <img src="../assets/screenshots/feishu-chat.svg" alt="Discussion Feishu avec CodexBridge" />
+      <img src="../assets/screenshots/feishu-groupchat.png" alt="Discussion de groupe Feishu avec CodexBridge" />
       <br />
-      <strong>Discussion d'equipe Feishu</strong>
+      <strong>Point d'entree groupe Feishu</strong>
+      <br />
+      <sub>Les membres de l'equipe peuvent appeler CodexBridge depuis un groupe Feishu.</sub>
     </td>
     <td width="50%">
-      <img src="../assets/screenshots/web-control-plane.svg" alt="Console web CodexBridge" />
+      <img src="../assets/screenshots/team%20config.png" alt="Configuration equipe et console web CodexBridge" />
       <br />
-      <strong>Console web de controle</strong>
+      <strong>Configuration equipe et console de controle</strong>
+      <br />
+      <sub>Les operateurs gerent bots, runtimes, canaux et acces equipe.</sub>
     </td>
   </tr>
   <tr>
     <td width="50%">
-      <img src="../assets/screenshots/user-management.svg" alt="Gestion des utilisateurs et credits CodexBridge" />
+      <img src="../assets/screenshots/codexbridge%20tui.png" alt="Chat TUI local CodexBridge" />
       <br />
-      <strong>Gestion des utilisateurs et credits</strong>
+      <strong>TUI local multi-tour</strong>
+      <br />
+      <sub>Les operateurs locaux continuent le meme fil de bot dans un terminal style Codex.</sub>
     </td>
     <td width="50%">
-      <img src="../assets/screenshots/tui-chat.svg" alt="TUI local CodexBridge" />
+      <img src="../assets/screenshots/codexbridge_teminal.png" alt="Entree CLI et statut runtime CodexBridge" />
       <br />
-      <strong>Chat TUI local</strong>
+      <strong>Entree CLI et statut</strong>
+      <br />
+      <sub>Verifier le bot actif, runtime, canal et workspace depuis la ligne de commande.</sub>
     </td>
   </tr>
 </table>
