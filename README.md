@@ -1,8 +1,10 @@
 # CodexBridge
 
-CodexBridge turns Codex into a managed team assistant for Feishu, Telegram, and local operators, with per-user access control, credits, audit logs, and persistent workspaces.
+CodexBridge 把 Codex 变成可管理的团队 AI 助手入口，支持飞书、Telegram 和本地 operator 使用，并提供用户权限、积分、审计日志和持久化工作区。
 
-[Getting Started](docs/getting-started.md) · [API Reference](docs/api-reference.md) · [Architecture](docs/current-architecture.md) · [Roadmap](ROADMAP.md) · [Telegram](docs/telegram-codex-bridge.md) · [Feishu](docs/feishu-channel-current-state.md)
+语言：中文 · [English](docs/readme/README.en.md) · [Français](docs/readme/README.fr.md) · [日本語](docs/readme/README.ja.md) · [한국어](docs/readme/README.ko.md)
+
+[快速开始](docs/getting-started.md) · [API Reference](docs/api-reference.md) · [架构](docs/current-architecture.md) · [Roadmap](ROADMAP.md) · [Telegram](docs/telegram-codex-bridge.md) · [Feishu](docs/feishu-channel-current-state.md)
 
 [![Node.js >=22](https://img.shields.io/badge/node-%3E%3D22-339933?logo=node.js&logoColor=white)](package.json)
 [![Version](https://img.shields.io/badge/version-0.1.0--alpha.7-blue)](package.json)
@@ -13,88 +15,88 @@ Ask Codex:
 Install Moshiii/CodexBridge from GitHub and start CodexBridge.
 ```
 
-## Preview
+## 预览
 
-These placeholders show the four screenshots that should carry the README once real product captures are ready.
+下面是 README 需要承载的四类核心截图占位图。真实产品截图稳定后，用实际截图替换这些 placeholder。
 
 <table>
   <tr>
     <td width="50%">
       <img src="docs/assets/screenshots/feishu-chat.svg" alt="Feishu team chat with CodexBridge" />
       <br />
-      <strong>Feishu team chat</strong>
+      <strong>飞书团队对话</strong>
     </td>
     <td width="50%">
       <img src="docs/assets/screenshots/web-control-plane.svg" alt="CodexBridge web control plane" />
       <br />
-      <strong>Web control plane</strong>
+      <strong>Web 管理控制台</strong>
     </td>
   </tr>
   <tr>
     <td width="50%">
       <img src="docs/assets/screenshots/user-management.svg" alt="CodexBridge user and credit management" />
       <br />
-      <strong>User and credit management</strong>
+      <strong>用户与积分管理</strong>
     </td>
     <td width="50%">
       <img src="docs/assets/screenshots/tui-chat.svg" alt="CodexBridge local TUI chat" />
       <br />
-      <strong>Local TUI chat</strong>
+      <strong>本地 TUI 对话</strong>
     </td>
   </tr>
 </table>
 
-## Why CodexBridge
+## 为什么需要 CodexBridge
 
-Codex is powerful in a local terminal. Teams need a safer way to let other people use that capability without handing them a shell, a machine, or unmanaged account access.
+Codex 在本地终端里很强，但团队需要一种更安全的方式，让其他人也能使用这份能力，同时不把 shell、主机或未受控的账号访问权直接交出去。
 
-CodexBridge adds the missing operating layer:
+CodexBridge 补上的是运营管理层：
 
-- Feishu and Telegram entry points for users
-- Bot-scoped access control, private unlocks, bans, and roles
-- Daily free quota, paid credits, usage ledger, and admin audit log
-- Persistent workspaces for files, memory, sessions, and logs
-- Web control plane for runtime state, users, credits, safety, and workspace files
-- Local TUI for operators who want a Codex-style terminal experience
+- 给用户提供飞书和 Telegram 入口
+- 按 bot 管理访问权限、私聊解锁、封禁和角色
+- 支持每日免费额度、付费积分、使用流水和管理员审计日志
+- 为文件、记忆、会话和日志提供持久化工作区
+- 通过 Web 控制台管理 runtime 状态、用户、积分、安全和工作区文件
+- 为 operator 提供 Codex 风格的本地 TUI 使用体验
 
-The value is managed access. Users get a simple chat interface; operators keep control over identity, quota, cost, workspace state, and risk.
+核心价值不是再做一个聊天窗口，而是受控分发。用户获得简单的聊天入口，operator 保留对身份、额度、成本、工作区状态和风险的控制。
 
-## Use Cases
+## 典型场景
 
-- **Team AI assistant in Feishu**: let selected teammates or groups ask for research, writing, summaries, file work, and task planning.
-- **Controlled Codex access**: provide Codex-backed work without exposing your terminal or host directly.
-- **Shared workspace bots**: create separate bots for projects, clients, teams, or workflows.
-- **Operator governance**: inspect runs, manage credits, review logs, stop runtimes, and control external access.
+- **飞书团队 AI 助手**：让指定同事或群组直接请求调研、写作、总结、文件处理和任务规划。
+- **受控 Codex 访问**：让他人使用 Codex-backed 工作能力，但不暴露你的终端或主机。
+- **共享工作区 bot**：为不同项目、客户、团队或工作流创建独立 bot。
+- **Operator 治理**：查看运行记录、管理积分、审查日志、停止 runtime，并控制外部访问。
 
-## Quick Start
+## 快速开始
 
-### Requirements
+### 要求
 
 - Node.js `>=22`
-- Codex CLI installed as `codex`
-- Rust/Cargo for the current `codexbridge tui` implementation
-- Telegram or Feishu credentials only if you want external chat channels
+- 已安装 Codex CLI，并可通过 `codex` 命令访问
+- 当前 `codexbridge tui` 需要 Rust/Cargo
+- 只有接入外部聊天渠道时才需要 Telegram 或飞书凭据
 
-### Install
+### 安装
 
-Most users can ask Codex to install it:
+多数用户可以直接让 Codex 安装：
 
 ```text
 Install Moshiii/CodexBridge from GitHub and start CodexBridge.
 ```
 
-Manual install:
+手动安装：
 
 ```bash
 npm install -g github:Moshiii/CodexBridge
 codexbridge
 ```
 
-Do not use `npm install -g codexbridge` or plain `npx codexbridge`; the npm registry name currently points to a different package.
+不要使用 `npm install -g codexbridge` 或直接 `npx codexbridge`；npm registry 上的 `codexbridge` 名称目前指向另一个包。
 
-### First Run
+### 首次运行
 
-`codexbridge` opens the operator menu for the active bot:
+`codexbridge` 会打开当前 bot 的 operator 菜单：
 
 ```text
 CodexBridge Menu · Default (default)
@@ -105,54 +107,54 @@ Connect Telegram or Feishu
 User management
 ```
 
-Start local chat:
+启动本地对话：
 
 ```bash
 codexbridge tui
 ```
 
-Start the web control plane:
+启动 Web 管理控制台：
 
 ```bash
 codexbridge web
 ```
 
-## What You Can Manage
+## 可以管理什么
 
-CodexBridge keeps state per bot under `~/.codexbridge/bots/<id>`.
+CodexBridge 按 bot 将状态保存在 `~/.codexbridge/bots/<id>`。
 
-Each bot has its own:
+每个 bot 都有独立的：
 
-- workspace and memory files
-- Feishu and Telegram channel settings
-- users, credits, bans, and private access
-- sessions, runs, logs, and audit records
-- runtime config and safety state
+- 工作区和记忆文件
+- 飞书和 Telegram 渠道配置
+- 用户、积分、封禁和私聊权限
+- 会话、运行记录、日志和审计记录
+- runtime 配置和安全状态
 
-For full setup details, see [Getting Started](docs/getting-started.md). For commands and local API endpoints, see [API Reference](docs/api-reference.md).
+完整设置见 [快速开始](docs/getting-started.md)。命令和本地 API 见 [API Reference](docs/api-reference.md)。
 
-## Status And Safety
+## 状态与安全
 
-CodexBridge is an alpha developer tool.
+CodexBridge 目前是 alpha 阶段的开发者工具。
 
-Bring your own authorized Codex/OpenAI access. CodexBridge is not a model provider, not a subscription resale layer, and not a way to share account credentials. It is an operator-controlled gateway around your own approved runtime.
+你需要自备已授权的 Codex/OpenAI 访问能力。CodexBridge 不是模型提供商，不是 subscription 转售层，也不是共享账号凭据的方式。它是围绕你自己已批准 runtime 的 operator-controlled gateway。
 
-Use it locally, test with trusted users first, and treat external chat access as sensitive. Application-level policy is not host isolation. Before letting untrusted external users run Codex through your machine, verify hard isolation with a separate OS user, container, sandbox, microVM, or remote worker.
+请先在本地使用，并先对可信用户测试。外部聊天访问应视为敏感能力。应用层策略不是主机级隔离。在允许不可信外部用户通过你的机器运行 Codex 之前，请使用独立 OS 用户、容器、sandbox、microVM 或 remote worker 验证硬隔离。
 
-## Documentation
+## 文档
 
-- [Getting Started](docs/getting-started.md) - install, first run, TUI, web control plane, Telegram, Feishu
-- [API Reference](docs/api-reference.md) - CLI commands and local web API endpoints
-- [Runtime Layout](docs/runtime-layout.md) - files under `~/.codexbridge`
-- [Current Architecture](docs/current-architecture.md) - module boundaries and runtime model
-- [Capability Overview](docs/codexbridge-capability-overview.md) - current feature surface
-- [Demo Workflows](docs/demo-workflows.md) - example tasks
-- [Roadmap](ROADMAP.md) - product and engineering direction
-- [Test Plan](docs/test-plan.md) - validation approach
-- [Telegram Bridge](docs/telegram-codex-bridge.md) - Telegram channel details
-- [Feishu Channel State](docs/feishu-channel-current-state.md) - Feishu/Lark current state
+- [Getting Started](docs/getting-started.md) - 安装、首次运行、TUI、Web 控制台、Telegram、飞书
+- [API Reference](docs/api-reference.md) - CLI 命令和本地 Web API
+- [Runtime Layout](docs/runtime-layout.md) - `~/.codexbridge` 下的文件结构
+- [Current Architecture](docs/current-architecture.md) - 模块边界和 runtime 模型
+- [Capability Overview](docs/codexbridge-capability-overview.md) - 当前能力面
+- [Demo Workflows](docs/demo-workflows.md) - 示例任务
+- [Roadmap](ROADMAP.md) - 产品与工程方向
+- [Test Plan](docs/test-plan.md) - 验证方案
+- [Telegram Bridge](docs/telegram-codex-bridge.md) - Telegram 渠道细节
+- [Feishu Channel State](docs/feishu-channel-current-state.md) - 飞书/Lark 当前状态
 
-## Development
+## 开发
 
 ```bash
 npm install
@@ -160,11 +162,11 @@ npm test
 npm start
 ```
 
-## Support And Security
+## 支持与安全
 
-- Bugs and feature requests: open a GitHub issue.
-- Security concerns: do not post secrets or private logs publicly. Open a private report or contact the maintainer directly.
-- Operational safety: use hard isolation before inviting untrusted external users.
+- Bug 和功能请求：请提交 GitHub issue。
+- 安全问题：不要公开发布 secrets 或私有日志，请使用私密渠道联系维护者。
+- 运营安全：邀请不可信外部用户之前，请使用硬隔离。
 
 ## License
 
